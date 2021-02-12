@@ -1,0 +1,23 @@
+
+This This is || the
+input file ( ) ; && , asd (); asd
+123			456 "asd";
+"this	should ;(): not be split\n"
+
+
+while:
+	singletab
+	while:
+		doubletab
+	singletab
+invalid	tab
+print("hello world")
+
+1+1==2
+3*3==9
+5//5==1
+x=2
+
+"this is the start
+this is the middle
+this is the end"
