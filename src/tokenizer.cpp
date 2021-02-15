@@ -12,14 +12,17 @@ using namespace std;
 
 // private members
 void Tokenizer::lines_to_tokens() {
-	string delimiters = "\"&|;:,()+-=*/";
-    string special_delimiters = "&|=/";
+	const string delimiters = "\"&|;:,()+-=*/%[]";
+    const string special_delimiters = "&|=/";  // 2 char op's
+    const string whitespace = "\n\r\t ";
 
 	int prev, length, s_line_num;
     string prev_str, s;
     bool in_str = false;
     for (int ln=0; ln < input.size(); ln++) {
         if (input[ln].size() == 0) continue;
+        int start = input[ln].find_first_not_of(whitespace);
+        if (input[ln][start] == '#') continue;
         
         prev = 0;
         for (int i=0; i < input[ln].size(); i++) {
@@ -152,6 +155,10 @@ void Tokenizer::compound(int amt, string sep) {
         tokens.erase(tokens.begin()+i);
         length--;
     }
+}
+
+int Tokenizer::size() {
+    return tokens.size();
 }
 
 #ifdef TOK_MAIN

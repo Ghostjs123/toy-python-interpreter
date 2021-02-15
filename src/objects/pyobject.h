@@ -32,6 +32,7 @@ public:
 
     string as_string() const;
     bool as_bool() const;
+    vector<PyObject> as_list() const;
     void error_undefined(string op, string t1, string t2) const;
     void error_unsupported_op(string op, string t1, string t2) const;
     void error_unsupported_unary_op(string op, string t1) const;
@@ -41,6 +42,7 @@ public:
     PyObject operator-(const PyObject& p) const;
     PyObject operator*(const PyObject& p) const;
     PyObject operator/(const PyObject& p) const;
+    PyObject operator%(const PyObject& p) const;
     PyObject operator==(const PyObject& p) const;
     PyObject operator!=(const PyObject& p) const;
     PyObject operator<=(const PyObject& p) const;

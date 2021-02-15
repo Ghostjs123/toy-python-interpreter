@@ -1,6 +1,6 @@
 #pragma once
 #include "stack.fwd.h"
-#include "../ast/ast.fwd.h"
+#include "ast.fwd.h"
 
 
 #ifndef STACK_H

@@ -12,9 +12,9 @@ using namespace std;
 Parser::Parser(Tokenizer *tokenizer) {
     this->tokenizer = tokenizer;
 }
-Expression Parser::parse() {
+Statements Parser::parse() {
     tokenizer->begin();
-    return Expression(tokenizer);
+    return Statements(tokenizer);
 }
 
 #ifdef PARS_MAIN

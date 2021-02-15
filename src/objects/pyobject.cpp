@@ -83,16 +83,21 @@ PyObject::PyObject(bool b, string type) {
     this->type = type;
     this->check_valid_type();
 }
+// lists
 PyObject::PyObject(vector<PyObject> li, string type) {
     this->li_value = li;
     this->type = type;
     this->check_valid_type();
 }
+// dicts
 PyObject::PyObject(map<string, PyObject> m, string type) {
     this->dict_value = m;
     this->type = type;
     this->check_valid_type();
 }
+
+// sets - TODO:
+
 
 // ==============================================================
 // misc class functions
@@ -122,15 +127,20 @@ string PyObject::as_string() const {
         return trim_trailing_zeros(to_string(this->f_value));
     }
     else if (this->type == "bool") {
-        return this->b_value ? "true" : "false";
+        return this->b_value ? "True" : "False";
     }
     else if (this->type == "int") {
         return to_string(this->i_value);
     }
     else if (this->type == "list") {
-        string s = "[ ";
-        for (PyObject p : this->li_value) {
-            s += p.as_string() + " ";
+        string s = "[";
+        if (this->li_value.size() == 1) {
+            s += this->li_value.front().as_string();
+        } else {
+            for (int i=0; i < this->li_value.size()-1; i++) {
+                s += this->li_value.at(i).as_string() + ", ";
+            }
+            s += this->li_value.back().as_string();
         }
         s += "]";
         return s;
@@ -158,6 +168,14 @@ bool PyObject::as_bool() const {
         return this->li_value.size() != 0;
     }
     cout << "as_bool() not defined for type " << this->type << endl;
+    throw;
+}
+
+vector<PyObject> PyObject::as_list() const {
+    if (this->type == "tuple" || this->type == "list" || this->type == "set") {
+        return this->li_value;
+    }
+    cout << "ERROR: as_list() called on PyObject of type: \'" << this->type << "\'" << endl;
     throw;
 }
 
@@ -398,6 +416,51 @@ PyObject PyObject::operator/(const PyObject& p) const {
         return PyObject(this->i_value / p.i_value, "float");
     }
     this->error_undefined("/", this->type, p.type);
+    throw;
+}
+
+PyObject PyObject::operator%(const PyObject& p) const {
+    // NOTE/TODO: % works like a format string
+    // >>> "%s %s" % ("Hello", "World")
+    // 'Hello World'
+
+    if (this->type == "float") {
+        if (p.type == "int") {
+            // float%int
+            return PyObject(fmod(this->f_value, p.i_value), "float");
+        }
+        if (p.type == "bool") {
+            // float%bool
+            return PyObject(fmod(this->f_value,  p.b_value), "float");
+        }
+        // float%float
+        return PyObject(fmod(this->f_value, p.f_value), "float");
+    }
+    if (this->type == "bool") {
+        if (p.type == "int") {
+            // bool%int
+            return PyObject((int)(this->b_value % p.i_value), "int");
+        }
+        if (p.type == "float") {
+            // bool%float
+            return PyObject(fmod(this->b_value, p.f_value), "float");
+        }
+        // bool%bool
+        return PyObject((int)(this->b_value % p.b_value), "int");
+    }
+    if (this->type == "int") {
+        if (p.type == "float") {
+            // int%float
+            return PyObject(fmod(this->i_value, p.f_value), "float");
+        }
+        if (p.type == "bool") {
+            // int%bool
+            return PyObject((int)(this->i_value % p.b_value), "int");
+        }
+        // int%int
+        return PyObject((int)(this->i_value % p.i_value), "int");
+    }
+    this->error_undefined("%", this->type, p.type);
     throw;
 }
 

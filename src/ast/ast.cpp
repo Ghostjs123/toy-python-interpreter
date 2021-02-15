@@ -11,15 +11,16 @@
 #include "util.h"
 #include "ast.h"
 #include "ast_helpers.h"
-#include "../objects/pyobject.h"
+#include "pyobject.h"
 #include "stack.h"
 using namespace std;
 
 #define VERBOSE 0
-#define INTERPRETER_DEBUG 1
 
 
+//===============================================================
 // AST: parent class of all nodes
+
 AST::AST() { }
 AST::AST(Tokenizer *tokenizer) {
     this->tokenizer = tokenizer;
@@ -58,62 +59,251 @@ ostream& AST::print(ostream& os) const {
     return os;
 }
 
-Op::Op(Tokenizer *tokenizer) {
+//===============================================================
+// Statements: starting non-terminal
+
+// statements: statement+ 
+Statements::Statements(Tokenizer *tokenizer) {
     this->tokenizer = tokenizer;
-    token = next_token();
+    parse();
 }
-PyObject Op::evaluate(Stack stack) {
-    return PyObject(token.value, "str");
+void Statements::parse() {
+    while (peek().value != "EOF") {
+        children.push_back(new Statement(tokenizer));
+    }
 }
-ostream& Op::print(ostream& os) const {
-    os << token.value;
+PyObject Statements::evaluate(Stack stack) {
+    vector<PyObject> results;
+    for (AST *child : children) {
+        results.push_back(child->evaluate(stack));
+    }
+    return PyObject(results, "list");
+}
+ostream& Statements::print(ostream& os) const {
+    for (AST *child : children) {
+        os << *child;
+    }
     return os;
 }
 
-String::String(Token token) {
-    this->token = token;
+//===============================================================
+// Statement
+
+// NOTE: this attempts to parse a CompoundStmt, falls back to SimpleStmt
+
+// statement: compound_stmt  | simple_stmt
+Statement::Statement(Tokenizer *tokenizer) {
+    this->tokenizer = tokenizer;
     parse();
-    if (VERBOSE) cout << "Created String: " << token.value << endl;
 }
-String::String(Tokenizer *tokenizer) {
-    this->token = tokenizer->next_token();
-    parse();
-    if (VERBOSE) cout << "Created String: " << token.value << endl;
-}
-void String::parse() {
-    if (token.value.size() > 0 && token.value.at(0) == '"') {
-        this->value = token.value.substr(1, token.value.size()-2);
+void Statement::parse() {
+    CompoundStmt *temp = new CompoundStmt(tokenizer);
+    if (temp->children.size() == 0) {
+        delete temp;
+        children.push_back(new SimpleStmt(tokenizer));
     } else {
-        this->value = token.value;
+        children.push_back(temp);
     }
 }
-PyObject String::evaluate(Stack stack) {
-    return PyObject(this->value, "str");
+PyObject Statement::evaluate(Stack stack) {
+    return children.at(0)->evaluate(stack);
 }
-ostream& String::print(ostream& os) const {
-    os << token.value;
+ostream& Statement::print(ostream& os) const {
+    for (AST *child : children) {
+        os << *child;
+    }
     return os;
 }
 
-Number::Number(Token token) {
-    this->token = token;
-    this->is_int = token.value.find(".") == string::npos;
-    if (VERBOSE) cout << "Created Number: " << token.value << endl;
+//===============================================================
+// SimpleStmt
+
+// simple_stmt:
+//     | small_stmt !';' NEWLINE  # Not needed, there for speedup
+//     | ';'.small_stmt+ [';'] NEWLINE
+SimpleStmt::SimpleStmt(Tokenizer *tokenizer) {
+    this->tokenizer = tokenizer;
+    parse();
 }
-Number::Number(Tokenizer *tokenizer) {
-    this->token = tokenizer->next_token();
-    if (VERBOSE) cout << "Created Number: " << token.value << endl;
+void SimpleStmt::parse() {
+    // TODO: grammar needs to support ;
+    children.push_back(new SmallStmt(tokenizer));
 }
-PyObject Number::evaluate(Stack stack) {
-    if (this->is_int) {
-        return PyObject(stoi(token.value), "int");
+PyObject SimpleStmt::evaluate(Stack stack) {
+    return children.at(0)->evaluate(stack);
+}
+ostream& SimpleStmt::print(ostream& os) const {
+    for (AST *child : children) {
+        os << *child;
     }
-    return PyObject(stof(token.value), "float");
-}
-ostream& Number::print(ostream& os) const {
-    os << token.value;
     return os;
 }
+
+//===============================================================
+// SmallStmt
+
+// NOTE: star_expressions leads to bitwise stuff (only way to get to Atom)
+
+// small_stmt:
+//     | assignment
+//     | star_expressions 
+//     | return_stmt
+//     | import_stmt
+//     | raise_stmt
+//     | 'pass' 
+//     | del_stmt
+//     | yield_stmt
+//     | assert_stmt
+//     | 'break' 
+//     | 'continue' 
+//     | global_stmt
+//     | nonlocal_stmt
+SmallStmt::SmallStmt(Tokenizer *tokenizer) {
+    this->tokenizer = tokenizer;
+    parse();
+}
+void SmallStmt::parse() {
+    if (peek().value == "return") {
+        cout << "SmallStmt: return" << endl;
+        throw;
+    }
+    else if (peek().value == "import") {
+        cout << "SmallStmt: import" << endl;
+        throw;
+    }
+    else if (peek().value == "raise") {
+        cout << "SmallStmt: raise" << endl;
+        throw;
+    }
+    else if (peek().value == "pass") {
+        cout << "SmallStmt: pass" << endl;
+        throw;
+    }
+    else if (peek().value == "del") {
+        cout << "SmallStmt: del" << endl;
+        throw;
+    }
+    else if (peek().value == "yield") {
+        cout << "SmallStmt: yield" << endl;
+        throw;
+    }
+    else if (peek().value == "assert") {
+        cout << "SmallStmt: assert" << endl;
+        throw;
+    }
+    else if (peek().value == "break") {
+        cout << "SmallStmt: break" << endl;
+        throw;
+    }
+    else if (peek().value == "continue") {
+        cout << "SmallStmt: continue" << endl;
+        throw;
+    }
+    else if (peek().value == "global") {
+        cout << "SmallStmt: global" << endl;
+        throw;
+    }
+    else if (peek().value == "nonlocal") {
+        cout << "SmallStmt: nonlocal" << endl;
+        throw;
+    }
+    else {
+        // assignment
+        // star_expressions
+        children.push_back(new StarExpressions(tokenizer));
+    }
+}
+PyObject SmallStmt::evaluate(Stack stack) {
+    return children.at(0)->evaluate(stack);
+}
+ostream& SmallStmt::print(ostream& os) const {
+    for (AST *child : children) {
+        os << *child;
+    }
+    return os;
+}
+
+//===============================================================
+// CompoundStmt
+
+// compound_stmt:
+//     | function_def
+//     | if_stmt
+//     | class_def
+//     | with_stmt
+//     | for_stmt
+//     | try_stmt
+//     | while_stmt
+CompoundStmt::CompoundStmt(Tokenizer *tokenizer) {
+    this->tokenizer = tokenizer;
+    parse();
+}
+void CompoundStmt::parse() {
+    if (peek().value == "if") {
+        children.push_back(new IfStmt(tokenizer));
+    }
+    else if (peek().value == "for") {
+        children.push_back(new ForStmt(tokenizer));
+    }
+    else if (peek().value == "while") {
+        children.push_back(new WhileStmt(tokenizer));
+    }
+    // TODO: function_def, class_def, with_stmt, try_stmt
+}
+PyObject CompoundStmt::evaluate(Stack stack) {
+    return children.at(0)->evaluate(stack);
+}
+ostream& CompoundStmt::print(ostream& os) const {
+    for (AST *child : children) {
+        os << *child;
+    }
+    return os;
+}
+
+//===============================================================
+// Assignment
+
+// assignment:
+//     | NAME ':' expression ['=' annotated_rhs ] 
+//     | ('(' single_target ')' 
+//          | single_subscript_attribute_target) ':' expression ['=' annotated_rhs ] 
+//     | (star_targets '=' )+ (yield_expr | star_expressions) !'=' [TYPE_COMMENT] 
+//     | single_target augassign ~ (yield_expr | star_expressions) 
+// augassign:
+//     | '+=' 
+//     | '-=' 
+//     | '*=' 
+//     | '@=' 
+//     | '/=' 
+//     | '%=' 
+//     | '&=' 
+//     | '|=' 
+//     | '^=' 
+//     | '<<=' 
+//     | '>>=' 
+//     | '**=' 
+//     | '//=' 
+Assignment::Assignment(Tokenizer *tokenizer) {
+    this->tokenizer = tokenizer;
+    parse();
+}
+void Assignment::parse() {
+    // TODO:
+}
+PyObject Assignment::evaluate(Stack stack) {
+    // TODO:
+    return PyObject(); // returns None
+}
+ostream& Assignment::print(ostream& os) const {
+    for (AST *child : children) {
+        os << *child;
+    }
+    return os;
+}
+
+
+//===============================================================
+// IfStmt
 
 // if_stmt:
 //     | 'if' named_expression ':' block elif_stmt 
@@ -123,12 +313,10 @@ IfStmt::IfStmt(Tokenizer *tokenizer) {
     parse();
 }
 void IfStmt::parse() {
-
+    // TODO:
 }
 PyObject IfStmt::evaluate(Stack stack) {
-    if (INTERPRETER_DEBUG) {
-        cout << "IfStmt::evaluate : " << children.size() << endl;
-    }
+    // TODO:
     return PyObject(); // returns None
 }
 ostream& IfStmt::print(ostream& os) const {
@@ -137,6 +325,10 @@ ostream& IfStmt::print(ostream& os) const {
     }
     return os;
 }
+
+//===============================================================
+// ElifStmt
+
 // elif_stmt:
 //     | 'elif' named_expression ':' block elif_stmt 
 //     | 'elif' named_expression ':' block [else_block] 
@@ -144,12 +336,10 @@ ElifStmt::ElifStmt(Tokenizer *tokenizer) {
 
 }
 void ElifStmt::parse() {
-
+    // TODO:
 }
 PyObject ElifStmt::evaluate(Stack stack) {
-    if (INTERPRETER_DEBUG) {
-        cout << "ElifStmt::evaluate : " << children.size() << endl;
-    }
+    // TODO:
     return PyObject(); // returns None
 }
 ostream& ElifStmt::print(ostream& os) const {
@@ -158,17 +348,20 @@ ostream& ElifStmt::print(ostream& os) const {
     }
     return os;
 }
+
+//===============================================================
+// ElseBlock
+
 // else_block: 'else' ':' block 
 ElseBlock::ElseBlock(Tokenizer *tokenizer) {
-
+    this->tokenizer = tokenizer;
+    parse();
 }
 void ElseBlock::parse() {
-
+    // TODO:
 }
 PyObject ElseBlock::evaluate(Stack stack) {
-    if (INTERPRETER_DEBUG) {
-        cout << "ElseBlock::evaluate : " << children.size() << endl;
-    }
+    // TODO:
     return PyObject(); // returns None
 }
 ostream& ElseBlock::print(ostream& os) const {
@@ -177,20 +370,56 @@ ostream& ElseBlock::print(ostream& os) const {
     }
     return os;
 }
+
+//===============================================================
+// WhileStmt
+
+// while_stmt:
+//     | 'while' named_expression ':' block [else_block] 
+WhileStmt::WhileStmt(Tokenizer *tokenizer) {
+    this->tokenizer = tokenizer;
+    parse();
+}
+void WhileStmt::parse() {
+    // TODO:
+}
+PyObject WhileStmt::evaluate(Stack stack) {
+    // TODO:
+    return PyObject();
+}
+ostream& WhileStmt::print(ostream& os) const {
+    for (AST *child : children) {
+        os << *child;
+    }
+    return os;
+}
+
+//===============================================================
+// ForStmt
+
+// NOTE: need to unpack
+// for [a,b,c] in ["123","def"]: print(a, b, c)
+// 1 2 3
+// d e f
+// NOTE: not block scoped (z prev undefined)
+// >>> for z in range(9): pass
+// >>> z
+// 8
+
 // for_stmt:
 //     | 'for' star_targets 'in' ~ star_expressions ':' [TYPE_COMMENT] block [else_block] 
 //     | ASYNC 'for' star_targets 'in' ~ star_expressions ':' [TYPE_COMMENT] block [else_block]
 ForStmt::ForStmt(Tokenizer *tokenizer) {
     // Loop better: a deeper look at iteration in Python
     // https://www.youtube.com/watch?v=V2PkkMS2Ack
+    this->tokenizer = tokenizer;
+    parse();
 }
 void ForStmt::parse() {
-
+    // TODO:
 }
 PyObject ForStmt::evaluate(Stack stack) {
-    if (INTERPRETER_DEBUG) {
-        cout << "ForStmt::evaluate : " << children.size() << endl;
-    }
+    // TODO:
     return PyObject(); // returns None
 }
 ostream& ForStmt::print(ostream& os) const {
@@ -199,6 +428,276 @@ ostream& ForStmt::print(ostream& os) const {
     }
     return os;
 }
+
+//===============================================================
+// WithStmt
+
+// with_stmt:
+//     | 'with' '(' ','.with_item+ ','? ')' ':' block 
+//     | 'with' ','.with_item+ ':' [TYPE_COMMENT] block 
+//     | ASYNC 'with' '(' ','.with_item+ ','? ')' ':' block 
+//     | ASYNC 'with' ','.with_item+ ':' [TYPE_COMMENT] block 
+WithStmt::WithStmt(Tokenizer *tokenizer) {
+    this->tokenizer = tokenizer;
+    parse();
+}
+void WithStmt::parse() {
+    // TODO:
+}
+PyObject WithStmt::evaluate(Stack stack) {
+    // TODO:
+    return PyObject();
+}
+ostream& WithStmt::print(ostream& os) const {
+    for (AST *child : children) {
+        os << *child;
+    }
+    return os;
+}
+
+//===============================================================
+// WithItem
+
+// with_item:
+//     | expression 'as' star_target &(',' | ')' | ':') 
+//     | expression
+WithItem::WithItem(Tokenizer *tokenizer) {
+    this->tokenizer = tokenizer;
+    parse();
+}
+void WithItem::parse() {
+    // TODO:
+}
+PyObject WithItem::evaluate(Stack stack) {
+    // TODO:
+    return PyObject();
+}
+ostream& WithItem::print(ostream& os) const {
+    for (AST *child : children) {
+        os << *child;
+    }
+    return os;
+}
+
+//===============================================================
+// TryStmt
+
+TryStmt::TryStmt(Tokenizer *tokenizer) {
+    this->tokenizer = tokenizer;
+    parse();
+}
+void TryStmt::parse() {
+    // TODO:
+}
+PyObject TryStmt::evaluate(Stack stack) {
+    // TODO:
+    return PyObject();
+}
+ostream& TryStmt::print(ostream& os) const {
+    for (AST *child : children) {
+        os << *child;
+    }
+    return os;
+}
+
+//===============================================================
+// ExceptBlock
+
+// except_block:
+//     | 'except' expression ['as' NAME ] ':' block 
+//     | 'except' ':' block 
+ExceptBlock::ExceptBlock(Tokenizer *tokenizer) {
+    this->tokenizer = tokenizer;
+    parse();
+}
+void ExceptBlock::parse() {
+    // TODO:
+}
+PyObject ExceptBlock::evaluate(Stack stack) {
+    // TODO:
+    return PyObject();
+}
+ostream& ExceptBlock::print(ostream& os) const {
+    for (AST *child : children) {
+        os << *child;
+    }
+    return os;
+}
+
+//===============================================================
+// FinallyBlock
+
+// finally_block: 'finally' ':' block 
+FinallyBlock::FinallyBlock(Tokenizer *tokenizer) {
+    this->tokenizer = tokenizer;
+    parse();
+}
+void FinallyBlock::parse() {
+    // TODO:
+}
+PyObject FinallyBlock::evaluate(Stack stack) {
+    // TODO:
+    return PyObject();
+}
+ostream& FinallyBlock::print(ostream& os) const {
+    for (AST *child : children) {
+        os << *child;
+    }
+    return os;
+}
+
+//===============================================================
+// ReturnStmt
+
+// return_stmt:
+//     | 'return' [star_expressions]
+ReturnStmt::ReturnStmt(Tokenizer *tokenizer) {
+    this->tokenizer = tokenizer;
+    parse();
+}
+void ReturnStmt::parse() {
+    // TODO:
+}
+PyObject ReturnStmt::evaluate(Stack stack) {
+    // TODO:
+    return PyObject();
+}
+ostream& ReturnStmt::print(ostream& os) const {
+    for (AST *child : children) {
+        os << *child;
+    }
+    return os;
+}
+
+//===============================================================
+// StarExpressions
+
+// NOTE: basically identical to Expressions
+
+// star_expressions:
+//     | star_expression (',' star_expression )+ [','] 
+//     | star_expression ',' 
+//     | star_expression
+StarExpressions::StarExpressions(Tokenizer *tokenizer) {
+    this->tokenizer = tokenizer;
+    parse();
+}
+void StarExpressions::parse() {
+    children.push_back(new StarExpression(tokenizer));
+    while(peek().value == ",") {
+        children.push_back(new StarExpression(tokenizer));
+    }
+}
+PyObject StarExpressions::evaluate(Stack stack) {
+    if (children.size() == 1) {
+        return children.at(0)->evaluate(stack);
+    }
+    vector<PyObject> results;
+    for (AST *child : children) {
+        results.push_back(child->evaluate(stack));
+    }
+    return PyObject(results, "tuple");
+}
+ostream& StarExpressions::print(ostream& os) const {
+    for (AST *child : children) {
+        os << *child;
+    }
+    return os;
+}
+
+//===============================================================
+// StarExpression
+
+// star_expression:
+//     | '*' bitwise_or 
+//     | expression
+StarExpression::StarExpression(Tokenizer *tokenizer) {
+    this->tokenizer = tokenizer;
+    parse();
+}
+void StarExpression::parse() {
+    if (peek().value == "*") {
+        children.push_back(new String(tokenizer));
+        children.push_back(new BitwiseOr(tokenizer));
+    }
+    else {
+        children.push_back(new Expression(tokenizer));
+    }
+}
+PyObject StarExpression::evaluate(Stack stack) {
+    // TODO: figure out how the * grammar works in practice
+    return children.at(0)->evaluate(stack);
+}
+ostream& StarExpression::print(ostream& os) const {
+    for (AST *child : children) {
+        os << *child;
+    }
+    return os;
+}
+
+//===============================================================
+// StarNamedExpressions
+
+// star_named_expressions: ','.star_named_expression+ [','] 
+StarNamedExpressions::StarNamedExpressions(Tokenizer *tokenizer) {
+    this->tokenizer = tokenizer;
+    parse();
+}
+void StarNamedExpressions::parse() {
+    children.push_back(new StarNamedExpression(tokenizer));
+    while (peek().value == ",") {
+        eat(",");
+        children.push_back(new StarNamedExpression(tokenizer));
+    }
+}
+PyObject StarNamedExpressions::evaluate(Stack stack) {
+    // NOTE: this always needs to return an iterable
+    vector<PyObject> results;
+    for (AST *child : children) {
+        results.push_back(child->evaluate(stack));
+    }
+    return PyObject(results, "tuple");
+}
+ostream& StarNamedExpressions::print(ostream& os) const {
+    for (AST *child : children) {
+        os << *child;
+    }
+    return os;
+}
+
+//===============================================================
+// StarNamedExpression
+
+// star_named_expression:
+//     | '*' bitwise_or 
+//     | named_expression
+StarNamedExpression::StarNamedExpression(Tokenizer *tokenizer) {
+    this->tokenizer = tokenizer;
+    parse();
+}
+void StarNamedExpression::parse() {
+    if (peek().value == "*") {
+        children.push_back(new String(tokenizer));
+        children.push_back(new BitwiseOr(tokenizer));
+    }
+    else {
+        children.push_back(new NamedExpression(tokenizer));
+    }
+}
+PyObject StarNamedExpression::evaluate(Stack stack) {
+    // TODO: figure out how the star is gonna work
+    return children.at(0)->evaluate(stack);
+}
+ostream& StarNamedExpression::print(ostream& os) const {
+    for (AST *child : children) {
+        os << *child;
+    }
+    return os;
+}
+
+//===============================================================
+// NamedExpression
+
 // named_expression:
 //     | NAME ':=' ~ expression 
 //     | expression !':='
@@ -207,13 +706,11 @@ NamedExpression::NamedExpression(Tokenizer *tokenizer) {
     parse();
 }
 void NamedExpression::parse() {
-
+    // TODO: handle ':=' case
+    children.push_back(new Expression(tokenizer));
 }
 PyObject NamedExpression::evaluate(Stack stack) {
-    if (INTERPRETER_DEBUG) {
-        cout << "NamedExpression::evaluate : " << children.size() << endl;
-    }
-    return PyObject(); // returns None
+    return children.at(0)->evaluate(stack);
 }
 ostream& NamedExpression::print(ostream& os) const {
     for (AST *child : children) {
@@ -221,6 +718,15 @@ ostream& NamedExpression::print(ostream& os) const {
     }
     return os;
 }
+
+//===============================================================
+// Expressions
+// NOTE: falls back to tuples
+// >>> 2+2,1-1
+// (4, 0)
+
+// NOTE: basically identical to StarExpressions
+
 // expressions:
 //     | expression (',' expression )+ [','] 
 //     | expression ',' 
@@ -230,13 +736,20 @@ Expressions::Expressions(Tokenizer *tokenizer) {
     parse();
 }
 void Expressions::parse() {
-
+    children.push_back(new Expression(tokenizer));
+    while(peek().value == ",") {
+        children.push_back(new Expression(tokenizer));
+    }
 }
 PyObject Expressions::evaluate(Stack stack) {
-    if (INTERPRETER_DEBUG) {
-        cout << "Expressions::evaluate : " << children.size() << endl;
+    if (children.size() == 1) {
+        return children.at(0)->evaluate(stack);
     }
-    return PyObject(); // returns None
+    vector<PyObject> results;
+    for (AST *child : children) {
+        results.push_back(child->evaluate(stack));
+    }
+    return PyObject(results, "tuple");
 }
 ostream& Expressions::print(ostream& os) const {
     for (AST *child : children) {
@@ -244,6 +757,10 @@ ostream& Expressions::print(ostream& os) const {
     }
     return os;
 }
+
+//===============================================================
+// Expression
+
 // expression:
 //     | disjunction 'if' disjunction 'else' expression 
 //     | disjunction
@@ -273,6 +790,10 @@ ostream& Expression::print(ostream& os) const {
     }
     return os;
 }
+
+//===============================================================
+// Disjunction
+
 // disjunction:
 //     | conjunction ('or' conjunction )+ 
 //     | conjunction
@@ -305,6 +826,10 @@ ostream& Disjunction::print(ostream& os) const {
     }
     return os;
 }
+
+//===============================================================
+// Conjunction
+
 // conjunction:
 //     | inversion ('and' inversion )+ 
 //     | inversion
@@ -337,6 +862,10 @@ ostream& Conjunction::print(ostream& os) const {
     }
     return os;
 }
+
+//===============================================================
+// Inversion
+
 // inversion:
 //     | 'not' inversion 
 //     | comparison
@@ -364,6 +893,10 @@ ostream& Inversion::print(ostream& os) const {
     }
     return os;
 }
+
+//===============================================================
+// Comparison
+
 // comparison:
 //     | bitwise_or compare_op_bitwise_or_pair+ 
 //     | bitwise_or
@@ -411,6 +944,10 @@ ostream& Comparison::print(ostream& os) const {
     }
     return os;
 }
+
+//===============================================================
+// BitwiseOr
+
 // bitwise_or:
 //     | bitwise_or '|' bitwise_xor 
 //     | bitwise_xor
@@ -443,6 +980,10 @@ ostream& BitwiseOr::print(ostream& os) const {
     }
     return os;
 }
+
+//===============================================================
+// BitwiseXor
+
 // bitwise_xor:
 //     | bitwise_xor '^' bitwise_and 
 //     | bitwise_and
@@ -475,6 +1016,10 @@ ostream& BitwiseXor::print(ostream& os) const {
     }
     return os;
 }
+
+//===============================================================
+// BitwiseAnd
+
 // bitwise_and:
 //     | bitwise_and '&' shift_expr 
 //     | shift_expr
@@ -507,6 +1052,10 @@ ostream& BitwiseAnd::print(ostream& os) const {
     }
     return os;
 }
+
+//===============================================================
+// ShiftExpr
+
 // shift_expr:
 //     | shift_expr '<<' sum 
 //     | shift_expr '>>' sum 
@@ -544,6 +1093,10 @@ ostream& ShiftExpr::print(ostream& os) const {
     }
     return os;
 }
+
+//===============================================================
+// Sum
+
 // sum:
 //     | sum '+' term 
 //     | sum '-' term 
@@ -581,6 +1134,10 @@ ostream& Sum::print(ostream& os) const {
     }
     return os;
 }
+
+//===============================================================
+// Term
+
 // term:
 //     | term '*' factor 
 //     | term '/' factor 
@@ -594,12 +1151,9 @@ Term::Term(Tokenizer *tokenizer) {
 }
 void Term::parse() {
     children.push_back(new Factor(tokenizer));
-    if (VERBOSE) cout << "Term: " << *children.back() << endl;
     while(is_term_op(peek().value)) {
         children.push_back(new Op(tokenizer));
-        if (VERBOSE) cout << "Term: " << *children.back() << endl;
         children.push_back(new Factor(tokenizer));
-        if (VERBOSE) cout << "Term: " << *children.back() << endl;
     }
 }
 PyObject Term::evaluate(Stack stack) {
@@ -624,6 +1178,10 @@ ostream& Term::print(ostream& os) const {
     }
     return os;
 }
+
+//===============================================================
+// Factor
+
 // factor:
 //     | '+' factor 
 //     | '-' factor 
@@ -676,6 +1234,10 @@ ostream& Factor::print(ostream& os) const {
     }
     return os;
 }
+
+//===============================================================
+// Power
+
 // power:
 //     | await_primary '**' factor 
 //     | await_primary
@@ -702,6 +1264,10 @@ ostream& Power::print(ostream& os) const {
     }
     return os;
 }
+
+//===============================================================
+// AwaitPrimary
+
 // await_primary:
 //     | AWAIT primary 
 //     | primary
@@ -722,6 +1288,10 @@ ostream& AwaitPrimary::print(ostream& os) const {
     }
     return os;
 }
+
+//===============================================================
+// Primary
+
 // primary:
 //     | invalid_primary  # must be before 'primay genexp' because of invalid_genexp
 //     | primary '.' NAME 
@@ -738,7 +1308,6 @@ void Primary::parse() {
     // im keeping it simle atm but its likely that a while loop will
     // be needed like Term, Sum, etc
     children.push_back(new Atom(tokenizer));
-    if (VERBOSE) cout << "Primary: " << *children.back() << endl;
     if (peek().value == ".") {
         // TODO: implement
     } else if(peek().value == "(") {
@@ -746,7 +1315,6 @@ void Primary::parse() {
         children.push_back(new Arguments(tokenizer));
         children.push_back(new String(tokenizer));
     }
-    if (VERBOSE) cout << "Primary: " << *children.back() << endl;
 }
 PyObject Primary::evaluate(Stack stack) {
     if (children.size() == 1) {
@@ -768,6 +1336,10 @@ ostream& Primary::print(ostream& os) const {
     }
     return os;
 }
+
+//===============================================================
+// Slices
+
 // slices:
 //     | slice !',' 
 //     | ','.slice+ [','] 
@@ -787,6 +1359,10 @@ ostream& Slices::print(ostream& os) const {
     }
     return os;
 }
+
+//===============================================================
+// Slice
+
 // slice:
 //     | [expression] ':' [expression] [':' [expression] ] 
 //     | expression 
@@ -806,6 +1382,10 @@ ostream& Slice::print(ostream& os) const {
     }
     return os;
 }
+
+//===============================================================
+// Atom
+
 // atom:
 //     | NAME
 //     | 'True' 
@@ -823,13 +1403,20 @@ Atom::Atom(Tokenizer *tokenizer) {
     parse();
 }
 void Atom::parse() {
-    Token token = next_token();
-    if (is_number(token.value)) {
-        children.push_back(new Number(token));
-        if (VERBOSE) cout << "Atom: " << *children.back() << endl;
-    } else {
-        children.push_back(new String(token));
-        if (VERBOSE) cout << "Atom: " << *children.back() << endl;
+    if (is_number(peek().value)) {
+        children.push_back(new Number(next_token()));
+    } 
+    else if (peek().value == "True" || peek().value == "False") {
+        children.push_back(new Bool(next_token()));
+    }
+    else if (peek().value == "(") {
+        children.push_back(new Tuple(tokenizer));
+    }
+    else if (peek().value == "[") {
+        children.push_back(new List(tokenizer));
+    }
+    else {
+        children.push_back(new String(next_token()));
     }
 }
 PyObject Atom::evaluate(Stack stack) {
@@ -841,6 +1428,74 @@ ostream& Atom::print(ostream& os) const {
     }
     return os;
 }
+
+//===============================================================
+// List
+
+// list:
+//     | '[' [star_named_expressions] ']'
+List::List(Tokenizer *tokenizer) {
+    this->tokenizer = tokenizer;
+    parse();
+}
+void List::parse() {
+    eat("[");
+    children.push_back(new StarNamedExpressions(tokenizer));
+    eat("]");
+}
+PyObject List::evaluate(Stack stack) {
+    return PyObject(children.at(0)->evaluate(stack).as_list(), "list");
+}
+ostream& List::print(ostream& os) const {
+    os << "[";
+    for (int i=0; i < children.size()-1; i++) {
+        os << *(children[i]) << ",";
+    }
+    os << *children.back();
+    os << "]";
+    return os;
+}
+
+//===============================================================
+// Tuple
+
+// tuple:
+//     | '(' [star_named_expression ',' [star_named_expressions]  ] ')'
+Tuple::Tuple(Tokenizer *tokenizer) {
+    this->tokenizer = tokenizer;
+    parse();
+}
+void Tuple::parse() {
+    eat("(");
+    children.push_back(new StarNamedExpression(tokenizer));
+    if (peek().value != ")") {
+        children.push_back(new StarNamedExpressions(tokenizer));
+    }
+    eat(")");
+}
+PyObject Tuple::evaluate(Stack stack) {
+    if (children.size() == 0) {
+        return children.at(0)->evaluate(stack);
+    }
+    vector<PyObject> results;
+    for (AST *child : children) {
+        results.push_back(child->evaluate(stack));
+    }
+    return PyObject(results, "tuple");
+}
+ostream& Tuple::print(ostream& os) const {
+    os << "(";
+    for (int i=0; i < children.size()-1; i++) {
+        os << *(children[i]) << ",";
+    }
+    os << *children.back();
+    os << ")";
+    return os;
+}
+
+//===============================================================
+// Arguments
+
 // arguments:
 //     | args [','] &')' 
 Arguments::Arguments(Tokenizer *tokenizer) {
@@ -868,6 +1523,10 @@ ostream& Arguments::print(ostream& os) const {
     os << *children.back();
     return os;
 }
+
+//===============================================================
+// Args
+
 // args:
 //     | ','.(starred_expression | named_expression !'=')+ [',' kwargs ] 
 //     | kwargs 
@@ -893,3 +1552,93 @@ ostream& Args::print(ostream& os) const {
     }
     return os;
 }
+
+//===============================================================
+// Op
+
+Op::Op(Tokenizer *tokenizer) {
+    this->tokenizer = tokenizer;
+    token = next_token();
+}
+PyObject Op::evaluate(Stack stack) {
+    return PyObject(token.value, "str");
+}
+ostream& Op::print(ostream& os) const {
+    os << token.value;
+    return os;
+}
+
+//===============================================================
+// String
+
+String::String(Token token) {
+    this->token = token;
+    parse();
+}
+String::String(Tokenizer *tokenizer) {
+    this->token = tokenizer->next_token();
+    parse();
+}
+void String::parse() {
+    if (token.value.size() > 0 && token.value.at(0) == '"') {
+        this->value = token.value.substr(1, token.value.size()-2);
+    } else {
+        this->value = token.value;
+    }
+}
+PyObject String::evaluate(Stack stack) {
+    return PyObject(this->value, "str");
+}
+ostream& String::print(ostream& os) const {
+    os << token.value;
+    return os;
+}
+
+//===============================================================
+// Number
+
+Number::Number(Token token) {
+    this->token = token;
+    parse();
+}
+Number::Number(Tokenizer *tokenizer) {
+    this->token = tokenizer->next_token();
+    parse();
+}
+void Number::parse() {
+    this->is_int = this->token.value.find(".") == string::npos;
+}
+PyObject Number::evaluate(Stack stack) {
+    if (this->is_int) {
+        return PyObject(stoi(token.value), "int");
+    }
+    return PyObject(stof(token.value), "float");
+}
+ostream& Number::print(ostream& os) const {
+    os << token.value;
+    return os;
+}
+
+//===============================================================
+// Bool
+
+Bool::Bool(Token token) {
+    this->token = token;
+    parse();
+}
+Bool::Bool(Tokenizer *tokenizer) {
+    this->token = token;
+    parse();
+}
+void Bool::parse() {
+    this->bool_value = token.value == "True";
+}
+PyObject Bool::evaluate(Stack stack) {
+    return PyObject(this->bool_value, "bool");
+}
+ostream& Bool::print(ostream& os) const {
+    os << token.value;
+    return os;
+}
+
+//===============================================================

@@ -26,6 +26,7 @@ class Tokenizer {
 		Token lookahead(int amt);
 		void begin();
 		void compound(int amt, string sep="");
+		int size();
 };
 
 #endif

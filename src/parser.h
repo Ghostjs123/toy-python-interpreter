@@ -13,7 +13,7 @@ class Parser {
         Tokenizer *tokenizer;
     public:
         Parser(Tokenizer *tokenizer);
-        Expression parse();
+        Statements parse();
 };
 
 #endif

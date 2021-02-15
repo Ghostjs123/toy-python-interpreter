@@ -76,10 +76,9 @@ PyObject apply_term_op(PyObject left, string op, PyObject right) {
     // if (op == "//") {
     //     return left.int_div(right);
     // }
-    // TODO: write the op definition then uncomment
-    // if (op == "%") {
-    //     return left % right;
-    // }
+    if (op == "%") {
+        return left % right;
+    }
     // reference: https://www.python.org/dev/peps/pep-0465/
     // NOTE: this is for matrix multiply - way out of scope for this project
     // if (op == "@") {
