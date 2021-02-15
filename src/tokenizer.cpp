@@ -96,7 +96,7 @@ void Tokenizer::lines_to_tokens() {
             }
         }
     }
-    cout << endl;
+    if (DEBUG) cout << endl;
 }
 
 // public members
