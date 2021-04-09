@@ -113,8 +113,7 @@ bool PyObject::is_valid_type(string type) {
 // NOTE: this method is mostly a spelling check atm
 void PyObject::check_valid_type() {
     if (!this->is_valid_type(this->type)) {
-        cout << "Invalid type for PyObject: \'" << this->type << "\'" << endl;
-        throw;
+        throw runtime_error("Invalid type for PyObject: \'" + this->type + "\'");
     }
 }
 
@@ -149,8 +148,7 @@ string PyObject::as_string() const {
         return "None";
     }
     // TODO: handle list and dict to strings
-    cout << "as_string() not defined for type " << this->type << endl;
-    throw;
+    throw runtime_error("as_string() not defined for type " + this->type);
 }
 
 // returns value as bool
@@ -161,46 +159,47 @@ bool PyObject::as_bool() const {
     if (this->type == "str") {
         return this->s_value != "";
     }
+    if (this->type == "int") {
+        return this->i_value != 0;
+    }
     if (this->type == "float") {
         return this->f_value != 0;
     }
     if (this->type == "list") {
         return this->li_value.size() != 0;
     }
-    cout << "as_bool() not defined for type " << this->type << endl;
-    throw;
+    throw runtime_error("as_bool() not defined for type " + this->type);
 }
 
 vector<PyObject> PyObject::as_list() const {
     if (this->type == "tuple" || this->type == "list" || this->type == "set") {
         return this->li_value;
     }
-    cout << "ERROR: as_list() called on PyObject of type: \'" << this->type << "\'" << endl;
-    throw;
+    throw runtime_error("ERROR: as_list() called on PyObject of type: \'" + this->type + "\'");
 }
 
 // error function for undefined ops
 void PyObject::error_undefined(string op, string t1, string t2) const {
-    cout << "undefined op \'" << op << "\' for \'" << t1 
-         << "\' and \'" << t2 << "\' - needs implemented" << endl;
+    throw runtime_error("undefined op \'" + op + "\' for \'" + t1 
+         + "\' and \'" + t2 + "\' - needs implemented");
 }
 
 // error function for unsupported ops
 void PyObject::error_unsupported_op(string op, string t1, string t2) const {
-    cout << "\'" << op << "\' not supported between instances of \'" 
-            << t1 << "\' and \'" << t2 << "\'" << endl;
+    throw runtime_error("\'" + op + "\' not supported between instances of \'" 
+            + t1 + "\' and \'" + t2 + "\'");
 }
 
 // error function for unsupported unary ops
 void PyObject::error_unsupported_unary_op(string op, string t1) const {
-    cout << "bad operand type for unary " << op << ": \'" << t1 << "\'" << endl;
+    throw runtime_error("bad operand type for unary " + op + ": \'" + t1 + "\'");
 }
 
 // error function for unsupported operands
 void PyObject::error_unsupported_operand(string op, string t1, string t2) const {
     // ex: unsupported operand type(s) for -: 'str' and 'str'
-    cout << "unsupported operand type(s) for " << op << 
-            ": \'" << t1 << "\' and \'" << t2 << "\'" << endl;
+    throw runtime_error("unsupported operand type(s) for " + op + 
+            ": \'" + t1 + "\' and \'" + t2 + "\'");
 }
 
 // ==============================================================
@@ -263,14 +262,13 @@ PyObject PyObject::operator+(const PyObject& p) const {
         return PyObject(this->b_value + p.b_value, "int");
     }
     this->error_undefined("+", this->type, p.type);
-    throw;
+    return PyObject();
 }
 
 PyObject PyObject::operator-(const PyObject& p) const {
     // string-(any) or (any)-string
     if (this->type == "str" || p.type == "str") {
         this->error_unsupported_operand("-", this->type, p.type);
-        throw;
     }
     if (this->type == "float") {
         if (p.type == "int") {
@@ -309,14 +307,13 @@ PyObject PyObject::operator-(const PyObject& p) const {
         return PyObject(this->i_value - p.i_value, "int");
     }
     this->error_undefined("-", this->type, p.type);
-    throw;
+    return PyObject();
 }
 
 PyObject PyObject::operator*(const PyObject& p) const {
     // string*string
     if (this->type == "str" && p.type == "str") {
-        cout << "can't multiply sequence by non-int of type " << p.type << endl;
-        throw;
+        throw runtime_error("can't multiply sequence by non-int of type " + p.type);
     }
     // string*float or float*string
     if ( (this->type == "str" && p.type == "float") ||
@@ -370,14 +367,13 @@ PyObject PyObject::operator*(const PyObject& p) const {
         return PyObject(this->i_value * p.i_value, "int");
     }
     this->error_undefined("*", this->type, p.type);
-    throw;
+    return PyObject();
 }
 
 PyObject PyObject::operator/(const PyObject& p) const {
     // string/(any) or (any)/string
     if (this->type == "str" || p.type == "str") {
         this->error_unsupported_operand("/", this->type, p.type);
-        throw;
     }
     if (this->type == "float") {
         if (p.type == "int") {
@@ -416,7 +412,7 @@ PyObject PyObject::operator/(const PyObject& p) const {
         return PyObject(this->i_value / p.i_value, "float");
     }
     this->error_undefined("/", this->type, p.type);
-    throw;
+    return PyObject();
 }
 
 PyObject PyObject::operator%(const PyObject& p) const {
@@ -461,7 +457,7 @@ PyObject PyObject::operator%(const PyObject& p) const {
         return PyObject((int)(this->i_value % p.i_value), "int");
     }
     this->error_undefined("%", this->type, p.type);
-    throw;
+    return PyObject();
 }
 
 PyObject PyObject::operator==(const PyObject& p) const {
@@ -483,7 +479,7 @@ PyObject PyObject::operator==(const PyObject& p) const {
     // TODO: implement list and dict
 
     this->error_undefined("==", this->type, p.type);
-    throw;
+    return PyObject();
 }
 
 PyObject PyObject::operator!=(const PyObject& p) const {
@@ -502,14 +498,13 @@ PyObject PyObject::operator!=(const PyObject& p) const {
     // TODO: implement list and dict
 
     this->error_undefined("!=", this->type, p.type);
-    throw;
+    return PyObject();
 }
 
 PyObject PyObject::operator<=(const PyObject& p) const {
     if ( (this->type == "str" && p.type != "str") || 
          (this->type != "str" && p.type == "str") ) {
         this->error_unsupported_op("<=", this->type, p.type);
-        throw;
     }
     // NOTE: checking p's type should be redundant after first if
     if (this->type == "str" && p.type == "str") {  
@@ -524,14 +519,13 @@ PyObject PyObject::operator<=(const PyObject& p) const {
     // TODO: implement list and dict
 
     this->error_undefined("<=", this->type, p.type);
-    throw;
+    return PyObject();
 }
 
 PyObject PyObject::operator<(const PyObject& p) const {
     if ( (this->type == "str" && p.type != "str") || 
          (this->type != "str" && p.type == "str") ) {
         this->error_unsupported_op("<", this->type, p.type);
-        throw;
     }
     // NOTE: checking p's type should be redundant after first if
     if (this->type == "str" && p.type == "str") {  
@@ -546,14 +540,13 @@ PyObject PyObject::operator<(const PyObject& p) const {
     // TODO: implement list and dict
     
     this->error_undefined("<", this->type, p.type);
-    throw;
+    return PyObject();
 }
 
 PyObject PyObject::operator>=(const PyObject& p) const {
     if ( (this->type == "str" && p.type != "str") || 
          (this->type != "str" && p.type == "str") ) {
         this->error_unsupported_op(">=", this->type, p.type);
-        throw;
     }
     // NOTE: checking p's type should be redundant after first if
     if (this->type == "str" && p.type == "str") {  
@@ -568,14 +561,13 @@ PyObject PyObject::operator>=(const PyObject& p) const {
     // TODO: implement list and dict
     
     this->error_undefined(">=", this->type, p.type);
-    throw;
+    return PyObject();
 }
 
 PyObject PyObject::operator>(const PyObject& p) const {
     if ( (this->type == "str" && p.type != "str") || 
          (this->type != "str" && p.type == "str") ) {
         this->error_unsupported_op(">", this->type, p.type);
-        throw;
     }
     // NOTE: checking p's type should be redundant after first if
     if (this->type == "str" && p.type == "str") {  
@@ -590,7 +582,7 @@ PyObject PyObject::operator>(const PyObject& p) const {
     // TODO: implement list and dict
     
     this->error_undefined(">", this->type, p.type);
-    throw;
+    return PyObject();
 }
 
 PyObject PyObject::operator~() {

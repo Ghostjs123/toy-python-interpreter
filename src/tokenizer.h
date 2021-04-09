@@ -12,12 +12,21 @@ class Tokenizer {
 		vector<Token> tokens;
 		int length, pos;
 
-		void lines_to_tokens();
+		const string delimiters = "\"'&|;:,.()+-=*/%[]#<>";
+		const string special_delimiters = "=.+-*/";  // 2+ char op's
+
 		void tokenize();
+		void eof(vector<int> indents, int ln);
+		bool should_append_op(char c1, char c2, char c3);
+		bool normal_delim(vector<string> input, int ln, int& prev, int i);
+		void end_of_line(vector<string> input, int ln, int& prev, int i, 
+                            bool& in_str, int& string_line_start, string& str_value);
+		void string_delim(vector<string> input, int ln, int& prev, int i, 
+                            bool& in_str, int& string_line_start, int& string_column_start,
+							string& str_value, string termination_char);
+		void comment_delim(vector<string> input, int ln, int& prev, int i, vector<int> indents);
 
 	public:
-		Token end_token = Token(-1, "EOF");
-
 		Tokenizer();
 		Tokenizer(vector<string> input);
 
@@ -27,6 +36,7 @@ class Tokenizer {
 		void begin();
 		void compound(int amt, string sep="");
 		int size();
+		void prettyprint();
 };
 
 #endif

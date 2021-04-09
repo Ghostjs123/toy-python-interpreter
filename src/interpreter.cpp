@@ -23,27 +23,24 @@ int main(int argc, char* argv[]) {
 		vector<string> contents = read_lines(argv[1]);
 
 		Tokenizer tokenizer(contents);
-		if (argc > 2 && ((string)argv[2]) == "-v") {
-			Token token;
-			cout << "tokens:" << endl;
-			if (tokenizer.size() == 0) {
-				return 0;
-			}
-			while ((token = tokenizer.next_token()).value != "EOF") {
-				cout << token.line_num << ": " << token.value << endl;
-			}
-			cout << endl;
+		if (argc > 2 && argv[2] == (string)"-v") {
+			tokenizer.prettyprint();
 		}
 
-		Parser parser(&tokenizer);
-    	Statements parse_tree = parser.parse();
+		Parser parser(&tokenizer, "file");
+    	Statements parse_tree = parser.parse_statements();
+		
+		cout << endl << "AST as a string:" << endl << parse_tree << endl;
 
+		cout << endl << "stdout:" << endl;;
 		Stack stack;
     	interpret(parse_tree, stack);
 
 	} else {
 		// interactive terminal
+		cout << ">>> ";
 		// TODO:
+		// NOTE: parse should return an Interactive
 	}
 
 	return 0;
