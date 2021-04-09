@@ -1,4 +1,3 @@
-#include <iostream>
 #include <fstream>
 #include <sys/stat.h>
 #include <algorithm>
@@ -16,23 +15,7 @@ bool is_number(const string& s) {
     }
 }
 
-string pad_string(string str, int size, char c=' ') {
-    if (str.size() > size) {
-        string msg = "ERROR: attempted to pad \'" 
-             + str + "\' of length " + to_string(str.size()) 
-             + " to a length of " + to_string(size);
-        throw runtime_error(msg);
-    }
-    str.insert(0, size - str.size(), c);
-    return str;
-}
-
-// template <class T>
-// bool vector_contains(vector<T> vec, T x) {
-//     return find(vec.begin(), vec.end(), x) != vec.end();
-// }
-
-string ltrim(string s) {
+string &ltrim(string &s) {
     s.erase(s.begin(), find_if(s.begin(), s.end(), [](int c) { return !isspace(c); }));
     return s;
 }

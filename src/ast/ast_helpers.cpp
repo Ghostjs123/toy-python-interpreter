@@ -34,7 +34,8 @@ PyObject apply_comparison_op(PyObject left, string op, PyObject right) {
     if (op == ">") {
         return left > right;
     }
-    throw runtime_error("apply_comparison_op: \'" + op + "\' not implemented");
+    cout << "apply_comparison_op: \'" << op << "\' not implemented";
+    throw;
 }
 
 PyObject apply_shift_op(PyObject left, string op, PyObject right) {
@@ -44,7 +45,8 @@ PyObject apply_shift_op(PyObject left, string op, PyObject right) {
     if (op == ">>") {
         return PyObject((int)left >> (int)right, "int");
     }
-    throw runtime_error("apply_shift_op: \'" + op + "\' not implemented");
+    cout << "apply_shift_op: \'" << op << "\' not implemented";
+    throw;
 }
 
 PyObject apply_sum_op(PyObject left, string op, PyObject right) {
@@ -54,7 +56,8 @@ PyObject apply_sum_op(PyObject left, string op, PyObject right) {
     if (op == "-") {
         return left - right;
     }
-    throw runtime_error("apply_sum_op: \'" + op + "\' not implemented");
+    cout << "apply_sum_op: \'" << op << "\' not implemented";
+    throw;
 }
 
 PyObject apply_term_op(PyObject left, string op, PyObject right) {
@@ -81,7 +84,8 @@ PyObject apply_term_op(PyObject left, string op, PyObject right) {
     // if (op == "@") {
     //     return left.matmul(right);
     // }
-    throw runtime_error("apply_term_op: \'" + op + "\' not implemented");
+    cout << "apply_term_op: \'" << op << "\' not implemented";
+    throw;
 }
 
 bool is_comparison_op(Tokenizer *tokenizer) {

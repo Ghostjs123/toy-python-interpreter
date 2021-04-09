@@ -7,18 +7,18 @@ stack = stack.o frame.o
 ast = ast.o ast_helpers.o
 
 tokenizer = tokenizer.o token.o $(libs)
-parser = parser.o $(tokenizer) $(pyobject) $(ast) $(stack) builtins.o
-interpreter = interpreter.o $(parser)
+parser = parser.o $(tokenizer) $(pyobject) $(ast) $(stack)
+interpreter = interpreter.o builtins.o $(parser)
 
 # default
 mypy: $(interpreter)
 	g++ $(interpreter) $(default_args) $(includes) -o mypy
 
 # mains for testing
-parser-main: tests/parser-main.cpp $(parser)
-	g++ tests/parser-main.cpp $(parser) $(default_args) $(includes) -D PARS_MAIN -o parser-main
-tokenizer-main: tests/tokenizer-main.cpp $(tokenizer)
-	g++ tests/tokenizer-main.cpp $(tokenizer) $(default_args) $(includes) -D TOK_MAIN -o tokenizer-main
+parser-main: $(parser)
+	g++ $(parser) $(default_args) $(includes) -D PARS_MAIN -o parser-main
+tokenizer-main: $(tokenizer)
+	g++ $(tokenizer) $(default_args) $(includes) -D TOK_MAIN -o tokenizer-main
 
 # test cases
 interpreter-tests: tests/interpreter-tests.cpp $(interpreter) 
@@ -90,3 +90,4 @@ stack.o: src/stack/stack.cpp
 
 util.o: lib/util.cpp
 	g++ lib/util.cpp $(includes) -c -o util.o
+

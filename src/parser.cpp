@@ -9,27 +9,37 @@
 #include "ast/ast_helpers.h"
 using namespace std;
 
-Parser::Parser(Tokenizer *tokenizer, string mode) {
+Parser::Parser(Tokenizer *tokenizer) {
     this->tokenizer = tokenizer;
-	this->mode = mode;
+}
+Statements Parser::parse() {
+    tokenizer->begin();
+    return Statements(tokenizer);
 }
 
-void Parser::advance_to_start() {
-	// skips empty lines
-	while ((tokenizer->peek().type == "NL" || tokenizer->peek().type == "NEWLINE")
-			&& tokenizer->peek().type != "ENDMARKER") {
-		tokenizer->next_token();
+#ifdef PARS_MAIN
+int main(int argc, char* argv[]) {
+
+	vector<string> contents{"print(1 + 2)"};
+	Tokenizer tokenizer(contents);
+
+	Token tok;
+	cout << "Contents:" << endl;
+	while((tok = tokenizer.next_token()) != tokenizer.end_token) {
+		cout << tok << endl;
 	}
-}
+	cout << endl;
 
-Interactive Parser::parse_interactive() {
-    tokenizer->begin();
-	advance_to_start();
-	return Interactive(tokenizer);
-}
+    Parser parser(&tokenizer);
+    AST parse_tree = parser.parse();
+	cout << parse_tree << endl;
 
-Statements Parser::parse_statements() {
-    tokenizer->begin();
-	advance_to_start();
-	return Statements(tokenizer);
+	cout << "Rem:" << endl;
+	while((tok = tokenizer.next_token()) != tokenizer.end_token) {
+		cout << tok << endl;
+	}
+	cout << "Done." << endl;
+
+	return 0;
 }
+#endif

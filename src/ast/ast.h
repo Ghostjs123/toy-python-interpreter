@@ -16,13 +16,6 @@
 #include "pyobject.h"
 #include "stack.h"
 using namespace std;
-
-// forward declares bc these need to know about eachother
-class NamedExpression;
-class Block;
-class IfStmt;
-class ElifStmt;
-class ElseBlock;
     
 class AST {
     public:
@@ -36,28 +29,9 @@ class AST {
         Token lookahead(int amt);
         Token next_token();
         void eat(string exp_value);
-        void eat(string exp_type, string exp_value);
         virtual PyObject evaluate(Stack stack);
         friend ostream& operator<<(ostream& os, const AST& ast);
         virtual ostream& print(ostream& os) const;
-};
-class File: public AST {
-    private:
-        void parse();
-    public:
-        File(Tokenizer *tokenizer);
-        
-        PyObject evaluate(Stack stack);
-        virtual ostream& print(ostream& os) const override;
-};
-class Interactive: public AST {
-    private:
-        void parse();
-    public:
-        Interactive(Tokenizer *tokenizer);
-        
-        PyObject evaluate(Stack stack);
-        virtual ostream& print(ostream& os) const override;
 };
 class Statements: public AST {
     private:
@@ -73,15 +47,6 @@ class Statement: public AST {
         void parse();
     public:
         Statement(Tokenizer *tokenizer);
-        
-        PyObject evaluate(Stack stack);
-        virtual ostream& print(ostream& os) const override;
-};
-class StatementNewline: public AST {
-    private:
-        void parse();
-    public:
-        StatementNewline(Tokenizer *tokenizer);
         
         PyObject evaluate(Stack stack);
         virtual ostream& print(ostream& os) const override;
@@ -133,9 +98,6 @@ class IfStmt: public AST {
 };
 class ElifStmt: public AST {
     private:
-        map<NamedExpression*, Block*> _elifs;
-        ElseBlock *_else;
-
         void parse();
     public:
         ElifStmt(Tokenizer *tokenizer);
@@ -221,15 +183,6 @@ class ReturnStmt: public AST {
     public:
         ReturnStmt(Tokenizer *tokenizer);
 
-        PyObject evaluate(Stack stack);
-        virtual ostream& print(ostream& os) const override;
-};
-class Block: public AST {
-    private:
-        void parse();
-    public:
-        Block(Tokenizer *tokenizer);
-        
         PyObject evaluate(Stack stack);
         virtual ostream& print(ostream& os) const override;
 };

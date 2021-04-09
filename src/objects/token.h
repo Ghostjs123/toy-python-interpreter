@@ -3,24 +3,21 @@
 
 #include <vector>
 #include <string>
-#include <tuple>
 using namespace std;
 
 class Token {
 	public:
-		string type, value;
-		int line_start, line_end, column_start, column_end;
+		string value;
+		int line_num;
 		
 		Token();
-		Token(string type, char value, tuple<int, int> start, tuple<int, int> end);
-		Token(string type, string value, tuple<int, int> start, tuple<int, int> end);
+		Token(int line_num, string value);
+		Token(int line_num, char value);
 
-		void append(string s, Token t);
+		void append(string s);
         friend ostream& operator<<(ostream& os, const Token& token);
 		friend bool operator==(const Token& lhs, const Token& rhs);
 		friend bool operator!=(const Token& lhs, const Token& rhs);
-
-    	operator string();
 };
 
 #endif
