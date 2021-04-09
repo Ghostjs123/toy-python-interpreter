@@ -11,9 +11,14 @@ using namespace std;
 class Parser {
     private:
         Tokenizer *tokenizer;
+        string mode;
+
+        void advance_to_start();
     public:
-        Parser(Tokenizer *tokenizer);
-        Statements parse();
+        Parser(Tokenizer *tokenizer, string mode);
+
+        Statements parse_statements();
+        Interactive parse_interactive();
 };
 
 #endif
