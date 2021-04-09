@@ -5,6 +5,6 @@
 #include "stack.h"
 
 
-PyObject interpret(Statements tree, Stack& stack);
+PyObject interpret(Expressions tree, Stack& stack);
 
 #endif
