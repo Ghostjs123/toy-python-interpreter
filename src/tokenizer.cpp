@@ -47,8 +47,8 @@ bool vector_contains(vector<T> vec, T x) {
     return find(vec.begin(), vec.end(), x) != vec.end();
 }
 
-// NOTE: this and sub exist because c++'s builtin .substr() method
-// really does not like carriage returns '\r' at the end of the string
+// NOTE: _sub and sub are neeed because c++'s builtin .substr() method
+// does not like carriage returns '\r' at the end of the string
 string _sub(string s, int prev, int i) {
     string sn = "";
     for (int _i=prev; _i < i; _i++) {
@@ -68,7 +68,7 @@ string get_type(string s) {
     if (ops.find(s) != string::npos) {
         return "OP";
     }
-    if (ops.length() > 1 && ops.find(s[0]) != string::npos && ops.find(s[1]) != string::npos) {
+    if (s.length() > 1 && ops.find(s[0]) != string::npos && ops.find(s[1]) != string::npos) {
         return "OP";
     }
     if (is_number(s)) {
@@ -453,7 +453,7 @@ int Tokenizer::size() {
     return this->length;
 }
 
-void Tokenizer::prettyprint() {
+void Tokenizer::print() {
     for (Token t : this->tokens) {
         cout << t << endl;
     }

@@ -13,7 +13,7 @@ int main(int argc, char* argv[]) {
 
 	vector<string> contents{"print(1 + 2)"};
 	Tokenizer tokenizer(contents);
-    tokenizer.prettyprint();
+    tokenizer.print();
 
     Parser parser(&tokenizer, "interactive");
     Interactive parse_tree = parser.parse_interactive();

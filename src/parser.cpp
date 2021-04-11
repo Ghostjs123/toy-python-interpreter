@@ -22,14 +22,14 @@ void Parser::advance_to_start() {
 	}
 }
 
-Interactive Parser::parse_interactive() {
+AST* Parser::parse() {
     tokenizer->begin();
 	advance_to_start();
-	return Interactive(tokenizer);
-}
-
-Statements Parser::parse_statements() {
-    tokenizer->begin();
-	advance_to_start();
-	return Statements(tokenizer);
+	if (mode == "file") {
+		return new File(tokenizer);
+	}
+	else if (mode == "interactive") {
+		return new Interactive(tokenizer);
+	}
+	throw runtime_error("unsupported mode '" + mode + "' for parser");
 }

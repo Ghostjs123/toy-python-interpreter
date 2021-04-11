@@ -160,7 +160,7 @@ int main(int argc, char* argv[]) {
 	Tokenizer tokenizer(contents);
 
     cout << "tokens:" << endl;
-	tokenizer.prettyprint();
+	tokenizer.print();
 
 	if (argc == 3 && argv[2] == (string)"-c") {
 		bool match = compare(argv[1], tokenizer);

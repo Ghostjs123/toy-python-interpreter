@@ -74,6 +74,12 @@ File::File(Tokenizer *tokenizer) {
 }
 void File::parse() {
     while (peek().type != "ENDMARKER") {
+        // NL's are strictly empty lines, skipping them here
+        while (peek().type == "NL") {
+            eat("NL", "");
+        }
+        if (peek().type == "ENDMARKER") break;
+
         children.push_back(new Statements(tokenizer));
     }
     eat("ENDMARKER", "");
@@ -177,6 +183,8 @@ StatementNewline::StatementNewline(Tokenizer *tokenizer) {
 void StatementNewline::parse() {
     if (peek().type == "NEWLINE") {
         eat("NEWLINE", "");
+    } else if (peek().type == "NL") {
+        eat("NL", "");
     } else if (peek().type == "ENDMARKER") {
         eat("ENDMARKER", "");
     } else {

@@ -36,7 +36,7 @@ class Tokenizer {
 		void begin();
 		void compound(int amt, string sep="");
 		int size();
-		void prettyprint();
+		void print();
 };
 
 #endif
