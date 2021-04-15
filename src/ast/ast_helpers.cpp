@@ -2,7 +2,7 @@
 #include <string>
 #include <vector>
 #include "ast_helpers.h"
-#include "../objects/pyobject.h"
+#include "pyobject.h"
 using namespace std;
 
 

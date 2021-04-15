@@ -18,7 +18,7 @@ bool is_number(const string& s) {
 
 string pad_string(string str, int size, char c=' ') {
     if (str.size() > size) {
-        string msg = "ERROR: attempted to pad \'" 
+        string msg = "attempted to pad \'" 
              + str + "\' of length " + to_string(str.size()) 
              + " to a length of " + to_string(size);
         throw runtime_error(msg);

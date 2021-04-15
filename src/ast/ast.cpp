@@ -6,6 +6,8 @@
 #include <iterator>
 #include <cstdlib>
 #include <numeric>
+#include <typeinfo>
+#include "logging.h"
 #include "tokenizer.h"
 #include "token.h"
 #include "util.h"
@@ -15,8 +17,6 @@
 #include "stack.h"
 using namespace std;
 
-#define VERBOSE 0
-
 //===============================================================
 // AST: parent class of all nodes
 
@@ -24,27 +24,33 @@ AST::AST() { }
 AST::AST(Tokenizer *tokenizer) {
     this->tokenizer = tokenizer;
 }
-Token AST::peek() { 
-    return (*tokenizer).peek(); 
+Token AST::peek(string func_name) {
+    try {
+        return tokenizer->peek();
+    } catch (exception& e) {
+        cout << func_name << ": " << e.what() << endl;
+    }
+    throw runtime_error("halting after error in peek()");
 }
 Token AST::lookahead(int amt) { 
-    return (*tokenizer).lookahead(amt);
+    return tokenizer->lookahead(amt);
 }
 Token AST::next_token() { 
-    return (*tokenizer).next_token();
+    return tokenizer->next_token();
 }
-void AST::eat(string exp_value) {
+void AST::eat(string exp_value, string func_name) {
     Token next = next_token();
     if (next.value != exp_value) {
-        cout << "ERROR: ate " << next.value << " expected " << exp_value << endl;
-        exit(EXIT_FAILURE);
+        throw runtime_error("ate '" + next.value + "' expected '" 
+                            + exp_value + "' in '" + func_name + "'");
     }
 }
-void AST::eat(string exp_type, string exp_value) {
+void AST::eat(string exp_type, string exp_value, string func_name) {
     Token next = next_token();
     if (next.type != exp_type && next.value != exp_value) {
-        throw runtime_error("ERROR: ate " + next.type + " '" + next.value
-                            + "' expected " + exp_type + " '" + exp_value + "'");
+        throw runtime_error("ate " + next.type + " '" + next.value
+                            + "' expected " + exp_type + " '" + exp_value + "' in '"
+                            + func_name + "'");
     }
 }
 PyObject AST::evaluate(Stack stack) {
@@ -69,22 +75,25 @@ ostream& AST::print(ostream& os) const {
 
 // file: [statements] ENDMARKER 
 File::File(Tokenizer *tokenizer) {
+    Logger::get_instance()->log(__FUNCTION__, DEBUG);
     this->tokenizer = tokenizer;
     parse();
+    Logger::get_instance()->log(__FUNCTION__ + (string)" - children.size() == " + to_string(children.size()), DEBUG);
 }
 void File::parse() {
-    while (peek().type != "ENDMARKER") {
+    while (peek("File").type != "ENDMARKER") {
         // NL's are strictly empty lines, skipping them here
-        while (peek().type == "NL") {
-            eat("NL", "");
+        while (peek("File").type == "NL") {
+            eat("NL", "", "File");
         }
-        if (peek().type == "ENDMARKER") break;
-
-        children.push_back(new Statements(tokenizer));
+        if (peek("File").type != "ENDMARKER") {
+            children.push_back(new Statements(tokenizer));
+        }
     }
-    eat("ENDMARKER", "");
+    eat("ENDMARKER", "", "File");
 }
 PyObject File::evaluate(Stack stack) {
+    Logger::get_instance()->log("File::evaluate()", DEBUG);
     for (AST *child : children) {
         child->evaluate(stack);
     }
@@ -102,13 +111,16 @@ ostream& File::print(ostream& os) const {
 
 // interactive: statement_newline
 Interactive::Interactive(Tokenizer *tokenizer) {
+    Logger::get_instance()->log(__FUNCTION__, DEBUG);
     this->tokenizer = tokenizer;
     parse();
+    Logger::get_instance()->log(__FUNCTION__ + (string)" - children.size() == " + to_string(children.size()), DEBUG);
 }
 void Interactive::parse() {
     children.push_back(new StatementNewline(tokenizer));
 }
 PyObject Interactive::evaluate(Stack stack) {
+    Logger::get_instance()->log("Interactive::evaluate()", DEBUG);
     return children.at(0)->evaluate(stack);
 }
 ostream& Interactive::print(ostream& os) const {
@@ -121,8 +133,10 @@ ostream& Interactive::print(ostream& os) const {
 
 // statements: statement+ 
 Statements::Statements(Tokenizer *tokenizer) {
+    Logger::get_instance()->log(__FUNCTION__, DEBUG);
     this->tokenizer = tokenizer;
     parse();
+    Logger::get_instance()->log(__FUNCTION__ + (string)" - children.size() == " + to_string(children.size()), DEBUG);
 }
 void Statements::parse() {
     Statement* temp = new Statement(tokenizer);
@@ -133,6 +147,7 @@ void Statements::parse() {
     }
 }
 PyObject Statements::evaluate(Stack stack) {
+    Logger::get_instance()->log("Statements::evaluate()", DEBUG);
     if (children.size() > 0) return children.at(0)->evaluate(stack);
     return PyObject();
 }
@@ -148,8 +163,10 @@ ostream& Statements::print(ostream& os) const {
 
 // statement: compound_stmt  | simple_stmt
 Statement::Statement(Tokenizer *tokenizer) {
+    Logger::get_instance()->log(__FUNCTION__, DEBUG);
     this->tokenizer = tokenizer;
     parse();
+    Logger::get_instance()->log(__FUNCTION__ + (string)" - children.size() == " + to_string(children.size()), DEBUG);
 }
 void Statement::parse() {
     CompoundStmt *temp = new CompoundStmt(tokenizer);
@@ -161,6 +178,7 @@ void Statement::parse() {
     }
 }
 PyObject Statement::evaluate(Stack stack) {
+    Logger::get_instance()->log("Statement::evaluate()", DEBUG);
     return children.at(0)->evaluate(stack);
 }
 ostream& Statement::print(ostream& os) const {
@@ -171,22 +189,28 @@ ostream& Statement::print(ostream& os) const {
 //===============================================================
 // StatementNewline
 
+    // NOTE: this node is only used for interactive mode
+    // I am opting to ignore a lot of the whitespace tokens in favor
+    // of handling them in the terminal (ncurses) stuff instead
+
 // statement_newline:
 //     | compound_stmt NEWLINE 
 //     | simple_stmt
 //     | NEWLINE 
 //     | ENDMARKER
 StatementNewline::StatementNewline(Tokenizer *tokenizer) {
+    Logger::get_instance()->log(__FUNCTION__, DEBUG);
     this->tokenizer = tokenizer;
     parse();
+    Logger::get_instance()->log(__FUNCTION__ + (string)" - children.size() == " + to_string(children.size()), DEBUG);
 }
 void StatementNewline::parse() {
-    if (peek().type == "NEWLINE") {
-        eat("NEWLINE", "");
-    } else if (peek().type == "NL") {
-        eat("NL", "");
-    } else if (peek().type == "ENDMARKER") {
-        eat("ENDMARKER", "");
+    if (peek("StatementNewline").type == "NEWLINE") {
+        eat("NEWLINE", "", "StatementNewline");
+    } else if (peek("StatementNewline").type == "NL") {
+        eat("NL", "", "StatementNewline");
+    } else if (peek("StatementNewline").type == "ENDMARKER") {
+        eat("ENDMARKER", "", "StatementNewline");
     } else {
         CompoundStmt *temp = new CompoundStmt(tokenizer);
         if (temp->children.size() == 0) {
@@ -194,11 +218,12 @@ void StatementNewline::parse() {
             children.push_back(new SimpleStmt(tokenizer));
         } else {
             children.push_back(temp);
-            eat("NEWLINE", "");
+            eat("NEWLINE", "", "StatementNewline");
         }
     }
 }
 PyObject StatementNewline::evaluate(Stack stack) {
+    Logger::get_instance()->log("StatementNewline::evaluate()", DEBUG);
     if (children.size() > 0) return children.at(0)->evaluate(stack);
     return PyObject();
 }
@@ -214,19 +239,23 @@ ostream& StatementNewline::print(ostream& os) const {
 //     | small_stmt !';' NEWLINE  # Not needed, there for speedup
 //     | ';'.small_stmt+ [';'] NEWLINE
 SimpleStmt::SimpleStmt(Tokenizer *tokenizer) {
+    Logger::get_instance()->log(__FUNCTION__, DEBUG);
     this->tokenizer = tokenizer;
     parse();
+    Logger::get_instance()->log(__FUNCTION__ + (string)" - children.size() == " + to_string(children.size()), DEBUG);
 }
 void SimpleStmt::parse() {
     // TODO: grammar needs to support ;
     children.push_back(new SmallStmt(tokenizer));
-    eat("NEWLINE", "");
+    eat("NEWLINE", "", "SimpleStmt");
 }
 PyObject SimpleStmt::evaluate(Stack stack) {
+    Logger::get_instance()->log("SimpleStmt::evaluate()", DEBUG);
     return children.at(0)->evaluate(stack);
 }
 ostream& SimpleStmt::print(ostream& os) const {
-    os << *children.at(0);
+    // NOTE: these should always have a NEWLINE
+    os << *children.at(0) << endl;
     return os;
 }
 
@@ -250,42 +279,44 @@ ostream& SimpleStmt::print(ostream& os) const {
 //     | global_stmt
 //     | nonlocal_stmt
 SmallStmt::SmallStmt(Tokenizer *tokenizer) {
+    Logger::get_instance()->log(__FUNCTION__, DEBUG);
     this->tokenizer = tokenizer;
     parse();
+    Logger::get_instance()->log(__FUNCTION__ + (string)" - children.size() == " + to_string(children.size()), DEBUG);
 }
 void SmallStmt::parse() {
-    if (peek().value == "return") {
-        throw runtime_error("SmallStmt: return");
+    if (peek("SmallStmt").value == "return") {
+        children.push_back(new ReturnStmt(tokenizer));
     }
-    else if (peek().value == "import") {
-        throw runtime_error("SmallStmt: import");
+    else if (peek("SmallStmt").value == "import") {
+        throw runtime_error("SmallStmt: 'import' not implemented");
     }
-    else if (peek().value == "raise") {
-        throw runtime_error("SmallStmt: raise");
+    else if (peek("SmallStmt").value == "raise") {
+        throw runtime_error("SmallStmt: 'raise' not implemented");
     }
-    else if (peek().value == "pass") {
-        throw runtime_error("SmallStmt: pass");
+    else if (peek("SmallStmt").value == "pass") {
+        throw runtime_error("SmallStmt: 'pass' not implemented");
     }
-    else if (peek().value == "del") {
-        throw runtime_error("SmallStmt: del");
+    else if (peek("SmallStmt").value == "del") {
+        throw runtime_error("SmallStmt: 'del' not implemented");
     }
-    else if (peek().value == "yield") {
-        throw runtime_error("SmallStmt: yield");
+    else if (peek("SmallStmt").value == "yield") {
+        throw runtime_error("SmallStmt: 'yield' not implemented");
     }
-    else if (peek().value == "assert") {
-        throw runtime_error("SmallStmt: assert");
+    else if (peek("SmallStmt").value == "assert") {
+        throw runtime_error("SmallStmt: 'assert' not implemented");
     }
-    else if (peek().value == "break") {
-        throw runtime_error("SmallStmt: break");
+    else if (peek("SmallStmt").value == "break") {
+        throw runtime_error("SmallStmt: 'break' not implemented");
     }
-    else if (peek().value == "continue") {
-        throw runtime_error("SmallStmt: continue");
+    else if (peek("SmallStmt").value == "continue") {
+        throw runtime_error("SmallStmt: 'continue' not implemented");
     }
-    else if (peek().value == "global") {
-        throw runtime_error("SmallStmt: global");
+    else if (peek("SmallStmt").value == "global") {
+        throw runtime_error("SmallStmt: 'global' not implemented");
     }
-    else if (peek().value == "nonlocal") {
-        throw runtime_error("SmallStmt: nonlocal");
+    else if (peek("SmallStmt").value == "nonlocal") {
+        throw runtime_error("SmallStmt: 'nonlocal' not implemented");
     }
     else {
         // assignment
@@ -294,6 +325,7 @@ void SmallStmt::parse() {
     }
 }
 PyObject SmallStmt::evaluate(Stack stack) {
+    Logger::get_instance()->log("SmallStmt::evaluate()", DEBUG);
     return children.at(0)->evaluate(stack);
 }
 ostream& SmallStmt::print(ostream& os) const {
@@ -313,22 +345,28 @@ ostream& SmallStmt::print(ostream& os) const {
 //     | try_stmt
 //     | while_stmt
 CompoundStmt::CompoundStmt(Tokenizer *tokenizer) {
+    Logger::get_instance()->log(__FUNCTION__, DEBUG);
     this->tokenizer = tokenizer;
     parse();
+    Logger::get_instance()->log(__FUNCTION__ + (string)" - children.size() == " + to_string(children.size()), DEBUG);
 }
 void CompoundStmt::parse() {
-    if (peek().value == "if") {
+    if (peek("CompoundStmt").value == "if") {
         children.push_back(new IfStmt(tokenizer));
     }
-    else if (peek().value == "for") {
+    else if (peek("CompoundStmt").value == "for") {
         children.push_back(new ForStmt(tokenizer));
     }
-    else if (peek().value == "while") {
+    else if (peek("CompoundStmt").value == "while") {
         children.push_back(new WhileStmt(tokenizer));
     }
-    // TODO: function_def, class_def, with_stmt, try_stmt
+    else if (peek("CompoundStmt").value == "def") {
+        children.push_back(new FunctionDef(tokenizer));
+    }
+    // TODO: class_def, with_stmt, try_stmt
 }
 PyObject CompoundStmt::evaluate(Stack stack) {
+    Logger::get_instance()->log("CompoundStmt::evaluate()", DEBUG);
     return children.at(0)->evaluate(stack);
 }
 ostream& CompoundStmt::print(ostream& os) const {
@@ -360,14 +398,17 @@ ostream& CompoundStmt::print(ostream& os) const {
 //     | '**=' 
 //     | '//=' 
 Assignment::Assignment(Tokenizer *tokenizer) {
+    Logger::get_instance()->log(__FUNCTION__, DEBUG);
     this->tokenizer = tokenizer;
     parse();
+    Logger::get_instance()->log(__FUNCTION__ + (string)" - children.size() == " + to_string(children.size()), DEBUG);
 }
 void Assignment::parse() {
     // TODO:
 }
 PyObject Assignment::evaluate(Stack stack) {
     // TODO:
+    Logger::get_instance()->log("Assignment::evaluate()", DEBUG);
     return PyObject(); // returns None
 }
 ostream& Assignment::print(ostream& os) const {
@@ -385,24 +426,27 @@ ostream& Assignment::print(ostream& os) const {
 //     | 'if' named_expression ':' block elif_stmt 
 //     | 'if' named_expression ':' block [else_block] 
 IfStmt::IfStmt(Tokenizer *tokenizer) {
+    Logger::get_instance()->log(__FUNCTION__, DEBUG);
     this->tokenizer = tokenizer;
     parse();
+    Logger::get_instance()->log(__FUNCTION__ + (string)" - children.size() == " + to_string(children.size()), DEBUG);
 }
 void IfStmt::parse() {
-    eat("if");
+    eat("if", "IfStmt");
     children.push_back(new NamedExpression(tokenizer));
-    eat(":");
+    eat(":", "IfStmt");
     children.push_back(new Block(tokenizer));
     // NOTE: if its an if-elif-else, 
     //  the else block should end up in the ElifStmt production
-    if (peek().value == "elif") {
+    if (peek("IfStmt").value == "elif") {
         children.push_back(new ElifStmt(tokenizer));
     }
-    else if (peek().value == "else") {
+    else if (peek("IfStmt").value == "else") {
         children.push_back(new ElseBlock(tokenizer));
     }
 }
 PyObject IfStmt::evaluate(Stack stack) {
+    Logger::get_instance()->log("IfStmt::evaluate()", DEBUG);
     if (children.at(0)->evaluate(stack)) {
         return children.at(1)->evaluate(stack);
     }
@@ -414,7 +458,7 @@ PyObject IfStmt::evaluate(Stack stack) {
     return PyObject();  // returns None
 }
 ostream& IfStmt::print(ostream& os) const {
-    os << "if " << *(children.at(0)) << ":" << endl;
+    os << "if " << *(children.at(0)) << ":";
     for (int i=1; i < children.size(); i++) {
         os << *(children.at(i)) << endl;
     }
@@ -428,28 +472,31 @@ ostream& IfStmt::print(ostream& os) const {
 //     | 'elif' named_expression ':' block elif_stmt 
 //     | 'elif' named_expression ':' block [else_block] 
 ElifStmt::ElifStmt(Tokenizer *tokenizer) {
+    Logger::get_instance()->log(__FUNCTION__, DEBUG);
     this->tokenizer = tokenizer;
     _else = nullptr;
     parse();
+    Logger::get_instance()->log(__FUNCTION__ + (string)" - children.size() == " + to_string(children.size()), DEBUG);
 }
 void ElifStmt::parse() {
-    eat("elif");
+    eat("elif", "ElifStmt");
     NamedExpression *t1 = new NamedExpression(tokenizer);
-    eat(":");
+    eat(":", "ElifStmt");
     Block *t2 = new Block(tokenizer);
     _elifs[t1] = t2;
-    while (peek().value == "elif") {
-        eat("elif");
+    while (peek("ElifStmt").value == "elif") {
+        eat("elif", "ElifStmt");
         t1 = new NamedExpression(tokenizer);
-        eat(":");
+        eat(":", "ElifStmt");
         t2 = new Block(tokenizer);
         _elifs[t1] = t2;
     }
-    if (peek().value == "else") {
+    if (peek("ElifStmt").value == "else") {
         _else = new ElseBlock(tokenizer);
     } 
 }
 PyObject ElifStmt::evaluate(Stack stack) {
+    Logger::get_instance()->log("ElifStmt::evaluate()", DEBUG);
     map<NamedExpression*, Block*>::iterator it;
     for (it = _elifs.begin(); it != _elifs.end(); it++) {
         if (it->first->evaluate(stack)) {
@@ -464,7 +511,7 @@ PyObject ElifStmt::evaluate(Stack stack) {
 ostream& ElifStmt::print(ostream& os) const {
     map<NamedExpression*, Block*>::const_iterator it;
     for (it = _elifs.begin(); it != _elifs.end(); it++) {
-        os << "elif " << *(it->first) << ":" << endl;
+        os << "elif " << *(it->first) << ":";
         os << *(it->second) << endl;
     }
     if (_else != nullptr) {
@@ -478,20 +525,22 @@ ostream& ElifStmt::print(ostream& os) const {
 
 // else_block: 'else' ':' block 
 ElseBlock::ElseBlock(Tokenizer *tokenizer) {
+    Logger::get_instance()->log(__FUNCTION__, DEBUG);
     this->tokenizer = tokenizer;
     parse();
+    Logger::get_instance()->log(__FUNCTION__ + (string)" - children.size() == " + to_string(children.size()), DEBUG);
 }
 void ElseBlock::parse() {
-    eat("else");
-    eat(":");
+    eat("else", "ElseBlock");
+    eat(":", "ElseBlock");
     children.push_back(new Block(tokenizer));
 }
 PyObject ElseBlock::evaluate(Stack stack) {
+    Logger::get_instance()->log("ElseBlock::evaluate()", DEBUG);
     return children.at(0)->evaluate(stack);
 }
 ostream& ElseBlock::print(ostream& os) const {
-    os << "else:" << endl;
-    os << *children.at(0) << endl;
+    os << "else:" << *children.at(0) << endl;
     return os;
 }
 
@@ -501,14 +550,17 @@ ostream& ElseBlock::print(ostream& os) const {
 // while_stmt:
 //     | 'while' named_expression ':' block [else_block] 
 WhileStmt::WhileStmt(Tokenizer *tokenizer) {
+    Logger::get_instance()->log(__FUNCTION__, DEBUG);
     this->tokenizer = tokenizer;
     parse();
+    Logger::get_instance()->log(__FUNCTION__ + (string)" - children.size() == " + to_string(children.size()), DEBUG);
 }
 void WhileStmt::parse() {
     // TODO:
 }
 PyObject WhileStmt::evaluate(Stack stack) {
     // TODO:
+    Logger::get_instance()->log("WhileStmt::evaluate()", DEBUG);
     return PyObject();
 }
 ostream& WhileStmt::print(ostream& os) const {
@@ -536,14 +588,17 @@ ostream& WhileStmt::print(ostream& os) const {
 ForStmt::ForStmt(Tokenizer *tokenizer) {
     // Loop better: a deeper look at iteration in Python
     // https://www.youtube.com/watch?v=V2PkkMS2Ack
+    Logger::get_instance()->log(__FUNCTION__, DEBUG);
     this->tokenizer = tokenizer;
     parse();
+    Logger::get_instance()->log(__FUNCTION__ + (string)" - children.size() == " + to_string(children.size()), DEBUG);
 }
 void ForStmt::parse() {
     // TODO:
 }
 PyObject ForStmt::evaluate(Stack stack) {
     // TODO:
+    Logger::get_instance()->log("ForStmt::evaluate()", DEBUG);
     return PyObject(); // returns None
 }
 ostream& ForStmt::print(ostream& os) const {
@@ -562,14 +617,17 @@ ostream& ForStmt::print(ostream& os) const {
 //     | ASYNC 'with' '(' ','.with_item+ ','? ')' ':' block 
 //     | ASYNC 'with' ','.with_item+ ':' [TYPE_COMMENT] block 
 WithStmt::WithStmt(Tokenizer *tokenizer) {
+    Logger::get_instance()->log(__FUNCTION__, DEBUG);
     this->tokenizer = tokenizer;
     parse();
+    Logger::get_instance()->log(__FUNCTION__ + (string)" - children.size() == " + to_string(children.size()), DEBUG);
 }
 void WithStmt::parse() {
     // TODO:
 }
 PyObject WithStmt::evaluate(Stack stack) {
     // TODO:
+    Logger::get_instance()->log("WithStmt::evaluate()", DEBUG);
     return PyObject();
 }
 ostream& WithStmt::print(ostream& os) const {
@@ -586,14 +644,17 @@ ostream& WithStmt::print(ostream& os) const {
 //     | expression 'as' star_target &(',' | ')' | ':') 
 //     | expression
 WithItem::WithItem(Tokenizer *tokenizer) {
+    Logger::get_instance()->log(__FUNCTION__, DEBUG);
     this->tokenizer = tokenizer;
     parse();
+    Logger::get_instance()->log(__FUNCTION__ + (string)" - children.size() == " + to_string(children.size()), DEBUG);
 }
 void WithItem::parse() {
     // TODO:
 }
 PyObject WithItem::evaluate(Stack stack) {
     // TODO:
+    Logger::get_instance()->log("WithItem::evaluate()", DEBUG);
     return PyObject();
 }
 ostream& WithItem::print(ostream& os) const {
@@ -607,14 +668,17 @@ ostream& WithItem::print(ostream& os) const {
 // TryStmt
 
 TryStmt::TryStmt(Tokenizer *tokenizer) {
+    Logger::get_instance()->log(__FUNCTION__, DEBUG);
     this->tokenizer = tokenizer;
     parse();
+    Logger::get_instance()->log(__FUNCTION__ + (string)" - children.size() == " + to_string(children.size()), DEBUG);
 }
 void TryStmt::parse() {
     // TODO:
 }
 PyObject TryStmt::evaluate(Stack stack) {
     // TODO:
+    Logger::get_instance()->log("TryStmt::evaluate()", DEBUG);
     return PyObject();
 }
 ostream& TryStmt::print(ostream& os) const {
@@ -631,14 +695,17 @@ ostream& TryStmt::print(ostream& os) const {
 //     | 'except' expression ['as' NAME ] ':' block 
 //     | 'except' ':' block 
 ExceptBlock::ExceptBlock(Tokenizer *tokenizer) {
+    Logger::get_instance()->log(__FUNCTION__, DEBUG);
     this->tokenizer = tokenizer;
     parse();
+    Logger::get_instance()->log(__FUNCTION__ + (string)" - children.size() == " + to_string(children.size()), DEBUG);
 }
 void ExceptBlock::parse() {
     // TODO:
 }
 PyObject ExceptBlock::evaluate(Stack stack) {
     // TODO:
+    Logger::get_instance()->log("ExceptBlock::evaluate()", DEBUG);
     return PyObject();
 }
 ostream& ExceptBlock::print(ostream& os) const {
@@ -653,14 +720,17 @@ ostream& ExceptBlock::print(ostream& os) const {
 
 // finally_block: 'finally' ':' block 
 FinallyBlock::FinallyBlock(Tokenizer *tokenizer) {
+    Logger::get_instance()->log(__FUNCTION__, DEBUG);
     this->tokenizer = tokenizer;
     parse();
+    Logger::get_instance()->log(__FUNCTION__ + (string)" - children.size() == " + to_string(children.size()), DEBUG);
 }
 void FinallyBlock::parse() {
     // TODO:
 }
 PyObject FinallyBlock::evaluate(Stack stack) {
     // TODO:
+    Logger::get_instance()->log("FinallyBlock::evaluate()", DEBUG);
     return PyObject();
 }
 ostream& FinallyBlock::print(ostream& os) const {
@@ -676,43 +746,129 @@ ostream& FinallyBlock::print(ostream& os) const {
 // return_stmt:
 //     | 'return' [star_expressions]
 ReturnStmt::ReturnStmt(Tokenizer *tokenizer) {
+    Logger::get_instance()->log(__FUNCTION__, DEBUG);
     this->tokenizer = tokenizer;
     parse();
+    Logger::get_instance()->log(__FUNCTION__ + (string)" - children.size() == " + to_string(children.size()), DEBUG);
 }
 void ReturnStmt::parse() {
-    // TODO:
+    eat("return", "ReturnStmt");
+    children.push_back(new StarExpressions(tokenizer));
 }
 PyObject ReturnStmt::evaluate(Stack stack) {
-    // TODO:
-    return PyObject();
+    Logger::get_instance()->log("ReturnStmt::evaluate()", DEBUG);
+    return children.at(0)->evaluate(stack);
 }
 ostream& ReturnStmt::print(ostream& os) const {
-    for (AST *child : children) {
-        os << *child;
-    }
+    os << "return " << *children.at(0);
     return os;
 }
 
 //===============================================================
+// FunctionDef
+
+// function_def:
+//     | decorators function_def_raw 
+//     | function_def_raw
+FunctionDef::FunctionDef(Tokenizer *tokenizer) {
+    Logger::get_instance()->log(__FUNCTION__, DEBUG);
+    this->tokenizer = tokenizer;
+    parse();
+    Logger::get_instance()->log(__FUNCTION__ + (string)" - children.size() == " + to_string(children.size()), DEBUG);
+}
+void FunctionDef::parse() {
+    this->raw = new FunctionDefRaw(tokenizer);
+}
+PyObject FunctionDef::evaluate(Stack stack) {
+    Logger::get_instance()->log("FunctionDef::evaluate()", DEBUG);
+    // add function definition to stack/frame
+    stack.add_function(this);
+    // function definition shouldnt return anything
+    return PyObject();
+}
+ostream& FunctionDef::print(ostream& os) const {
+    os << *this->raw;
+    return os;
+}
+
+//===============================================================
+// FunctionDefRaw
+
+// function_def_raw:
+//     | 'def' NAME '(' [params] ')' ['->' expression ] ':' [func_type_comment] block 
+//     | ASYNC 'def' NAME '(' [params] ')' ['->' expression ] ':' [func_type_comment] block 
+FunctionDefRaw::FunctionDefRaw(Tokenizer *tokenizer) {
+    Logger::get_instance()->log(__FUNCTION__, DEBUG);
+    this->tokenizer = tokenizer;
+    parse();
+    Logger::get_instance()->log(__FUNCTION__ + (string)" - children.size() == " + to_string(children.size()), DEBUG);
+}
+void FunctionDefRaw::parse() {
+    eat("def", "FunctionDefRaw");
+    this->name = next_token().value;
+    eat("(", "FunctionDefRaw");
+    vector<AST*> params;
+    while (peek("FunctionDefRaw").value != ")") {
+        params.push_back(new _String(tokenizer));
+    }
+    this->params = params;
+    eat(")", "FunctionDefRaw");
+    eat(":", "FunctionDefRaw");
+    this->body = new Block(tokenizer);
+}
+PyObject FunctionDefRaw::evaluate(Stack stack) {
+    Logger::get_instance()->log("FunctionDefRaw::evaluate()", DEBUG);
+    // function definition shouldnt return anything
+    return PyObject();
+}
+ostream& FunctionDefRaw::print(ostream& os) const {
+    os << "def " << name << "(";
+    if (params.size() > 1) {
+        for (int i=0; i < params.size()-1; i++) {
+            os << *params.at(i) << ", ";
+        }
+        os << *params.back();
+    }
+    else if (params.size() == 1) os << *params.back();
+    os << "):" << *body;
+    return os;
+}
+
+
+//===============================================================
 // Block
+
+// NOTE: I am intentionally not calling Statements here, using Statement instead
 
 // block:
 //     | NEWLINE INDENT statements DEDENT 
 //     | simple_stmt
 Block::Block(Tokenizer *tokenizer) {
+    Logger::get_instance()->log(__FUNCTION__, DEBUG);
     this->tokenizer = tokenizer;
     parse();
+    Logger::get_instance()->log(__FUNCTION__ + (string)" - children.size() == " + to_string(children.size()), DEBUG);
 }
 void Block::parse() {
-    // TODO:
+    eat("NEWLINE", "", "Block");
+    this->indent = peek("Block").value;
+    eat("INDENT", "", "Block");
+    while (peek("Block").type != "DEDENT") {
+        children.push_back(new Statement(tokenizer));
+    }
+    eat("DEDENT", "", "Block");
 }
 PyObject Block::evaluate(Stack stack) {
-    // TODO:
-    return PyObject();
+    Logger::get_instance()->log("Block::evaluate()", DEBUG);
+    vector<PyObject> results;
+    for (AST *child : children) {
+        results.push_back(child->evaluate(stack));
+    }
+    return PyObject(results, "tuple");
 }
 ostream& Block::print(ostream& os) const {
     for (AST *child : children) {
-        os << *child;
+        os << endl << indent << *child;
     }
     return os;
 }
@@ -727,16 +883,19 @@ ostream& Block::print(ostream& os) const {
 //     | star_expression ',' 
 //     | star_expression
 StarExpressions::StarExpressions(Tokenizer *tokenizer) {
+    Logger::get_instance()->log(__FUNCTION__, DEBUG);
     this->tokenizer = tokenizer;
     parse();
+    Logger::get_instance()->log(__FUNCTION__ + (string)" - children.size() == " + to_string(children.size()), DEBUG);
 }
 void StarExpressions::parse() {
     children.push_back(new StarExpression(tokenizer));
-    while(peek().value == ",") {
+    while(peek("StarExpressions").value == ",") {
         children.push_back(new StarExpression(tokenizer));
     }
 }
 PyObject StarExpressions::evaluate(Stack stack) {
+    Logger::get_instance()->log("StarExpressions::evaluate()", DEBUG);
     if (children.size() == 1) {
         return children.at(0)->evaluate(stack);
     }
@@ -760,12 +919,14 @@ ostream& StarExpressions::print(ostream& os) const {
 //     | '*' bitwise_or 
 //     | expression
 StarExpression::StarExpression(Tokenizer *tokenizer) {
+    Logger::get_instance()->log(__FUNCTION__, DEBUG);
     this->tokenizer = tokenizer;
     parse();
+    Logger::get_instance()->log(__FUNCTION__ + (string)" - children.size() == " + to_string(children.size()), DEBUG);
 }
 void StarExpression::parse() {
-    if (peek().value == "*") {
-        children.push_back(new String(tokenizer));
+    if (peek("StarExpression").value == "*") {
+        children.push_back(new _String(tokenizer));
         children.push_back(new BitwiseOr(tokenizer));
     }
     else {
@@ -773,6 +934,7 @@ void StarExpression::parse() {
     }
 }
 PyObject StarExpression::evaluate(Stack stack) {
+    Logger::get_instance()->log("StarExpression::evaluate()", DEBUG);
     // TODO: figure out how the * grammar works in practice
     return children.at(0)->evaluate(stack);
 }
@@ -788,17 +950,20 @@ ostream& StarExpression::print(ostream& os) const {
 
 // star_named_expressions: ','.star_named_expression+ [','] 
 StarNamedExpressions::StarNamedExpressions(Tokenizer *tokenizer) {
+    Logger::get_instance()->log(__FUNCTION__, DEBUG);
     this->tokenizer = tokenizer;
     parse();
+    Logger::get_instance()->log(__FUNCTION__ + (string)" - children.size() == " + to_string(children.size()), DEBUG);
 }
 void StarNamedExpressions::parse() {
     children.push_back(new StarNamedExpression(tokenizer));
-    while (peek().value == ",") {
-        eat(",");
+    while (peek("StarNamedExpressions").value == ",") {
+        eat(",", "StarNamedExpressions");
         children.push_back(new StarNamedExpression(tokenizer));
     }
 }
 PyObject StarNamedExpressions::evaluate(Stack stack) {
+    Logger::get_instance()->log("StarNamedExpressions::evaluate()", DEBUG);
     // NOTE: this always needs to return an iterable
     vector<PyObject> results;
     for (AST *child : children) {
@@ -820,12 +985,15 @@ ostream& StarNamedExpressions::print(ostream& os) const {
 //     | '*' bitwise_or 
 //     | named_expression
 StarNamedExpression::StarNamedExpression(Tokenizer *tokenizer) {
+    Logger::get_instance()->log(__FUNCTION__, DEBUG);
     this->tokenizer = tokenizer;
     parse();
+    Logger::get_instance()->log(__FUNCTION__ + (string)" - children.size() == " + to_string(children.size()), DEBUG);
 }
 void StarNamedExpression::parse() {
-    if (peek().value == "*") {
-        children.push_back(new String(tokenizer));
+    Logger::get_instance()->log("StarNamedExpression::evaluate()", DEBUG);
+    if (peek("StarNamedExpression").value == "*") {
+        children.push_back(new _String(tokenizer));
         children.push_back(new BitwiseOr(tokenizer));
     }
     else {
@@ -850,14 +1018,17 @@ ostream& StarNamedExpression::print(ostream& os) const {
 //     | NAME ':=' ~ expression 
 //     | expression !':='
 NamedExpression::NamedExpression(Tokenizer *tokenizer) {
+    Logger::get_instance()->log(__FUNCTION__, DEBUG);
     this->tokenizer = tokenizer;
     parse();
+    Logger::get_instance()->log(__FUNCTION__ + (string)" - children.size() == " + to_string(children.size()), DEBUG);
 }
 void NamedExpression::parse() {
     // TODO: handle ':=' case
     children.push_back(new Expression(tokenizer));
 }
 PyObject NamedExpression::evaluate(Stack stack) {
+    Logger::get_instance()->log("NamedExpression::evaluate()", DEBUG);
     return children.at(0)->evaluate(stack);
 }
 ostream& NamedExpression::print(ostream& os) const {
@@ -880,16 +1051,19 @@ ostream& NamedExpression::print(ostream& os) const {
 //     | expression ',' 
 //     | expression
 Expressions::Expressions(Tokenizer *tokenizer) {
+    Logger::get_instance()->log(__FUNCTION__, DEBUG);
     this->tokenizer = tokenizer;
     parse();
+    Logger::get_instance()->log(__FUNCTION__ + (string)" - children.size() == " + to_string(children.size()), DEBUG);
 }
 void Expressions::parse() {
     children.push_back(new Expression(tokenizer));
-    while(peek().value == ",") {
+    while(peek("Expressions").value == ",") {
         children.push_back(new Expression(tokenizer));
     }
 }
 PyObject Expressions::evaluate(Stack stack) {
+    Logger::get_instance()->log("Expressions::evaluate()", DEBUG);
     if (children.size() == 1) {
         return children.at(0)->evaluate(stack);
     }
@@ -914,8 +1088,10 @@ ostream& Expressions::print(ostream& os) const {
 //     | disjunction
 //     | lambdef
 Expression::Expression(Tokenizer *tokenizer) {
+    Logger::get_instance()->log(__FUNCTION__, DEBUG);
     this->tokenizer = tokenizer;
     parse();
+    Logger::get_instance()->log(__FUNCTION__ + (string)" - children.size() == " + to_string(children.size()), DEBUG);
 }
 void Expression::parse() {
     // NOTE: skipping lambdef
@@ -925,11 +1101,12 @@ void Expression::parse() {
     children.push_back(new Disjunction(tokenizer));
 }
 PyObject Expression::evaluate(Stack stack) {
+    Logger::get_instance()->log("Expression::evaluate()", DEBUG);
     // TODO: implement case (1)
     if (children.size() == 1) {
         return children.at(0)->evaluate(stack);
     }
-    throw runtime_error("ERROR: reached end of Expression::evaluate() without returning");
+    throw runtime_error("reached end of Expression::evaluate() without returning");
 }
 ostream& Expression::print(ostream& os) const {
     for (AST *child : children) {
@@ -945,17 +1122,20 @@ ostream& Expression::print(ostream& os) const {
 //     | conjunction ('or' conjunction )+ 
 //     | conjunction
 Disjunction::Disjunction(Tokenizer *tokenizer) {
+    Logger::get_instance()->log(__FUNCTION__, DEBUG);
     this->tokenizer = tokenizer;
     parse();
+    Logger::get_instance()->log(__FUNCTION__ + (string)" - children.size() == " + to_string(children.size()), DEBUG);
 }
 void Disjunction::parse() {
     children.push_back(new Conjunction(tokenizer));
-    while(peek().value == "or") {
-        eat("or");
+    while(peek("Disjunction").value == "or") {
+        eat("or", "Disjunction");
         children.push_back(new Conjunction(tokenizer));
     }
 }
 PyObject Disjunction::evaluate(Stack stack) {
+    Logger::get_instance()->log("Disjunction::evaluate()", DEBUG);
     if (children.size() == 1) {
         return children.at(0)->evaluate(stack);
     }
@@ -981,17 +1161,20 @@ ostream& Disjunction::print(ostream& os) const {
 //     | inversion ('and' inversion )+ 
 //     | inversion
 Conjunction::Conjunction(Tokenizer *tokenizer) {
+    Logger::get_instance()->log(__FUNCTION__, DEBUG);
     this->tokenizer = tokenizer;
     parse();
+    Logger::get_instance()->log(__FUNCTION__ + (string)" - children.size() == " + to_string(children.size()), DEBUG);
 }
 void Conjunction::parse() {
     children.push_back(new Inversion(tokenizer));
-    while(peek().value == "and") {
-        eat("and");
+    while(peek("Conjunction").value == "and") {
+        eat("and", "Conjunction");
         children.push_back(new Inversion(tokenizer));
     }
 }
 PyObject Conjunction::evaluate(Stack stack) {
+    Logger::get_instance()->log("Conjunction::evaluate()", DEBUG);
     if (children.size() == 1) {
         return children.at(0)->evaluate(stack);
     }
@@ -1017,16 +1200,19 @@ ostream& Conjunction::print(ostream& os) const {
 //     | 'not' inversion 
 //     | comparison
 Inversion::Inversion(Tokenizer *tokenizer) {
+    Logger::get_instance()->log(__FUNCTION__, DEBUG);
     this->tokenizer = tokenizer;
     parse();
+    Logger::get_instance()->log(__FUNCTION__ + (string)" - children.size() == " + to_string(children.size()), DEBUG);
 }
 void Inversion::parse() {
-    if (peek().value == "not") {
-        children.push_back(new String(tokenizer));
+    if (peek("Inversion").value == "not") {
+        children.push_back(new _String(tokenizer));
     }
     children.push_back(new Comparison(tokenizer));
 }
 PyObject Inversion::evaluate(Stack stack) {
+    Logger::get_instance()->log("Inversion::evaluate()", DEBUG);
     PyObject s = children.at(0)->evaluate(stack);
     if (s.type == "str" && s.as_string() == "not") {
         bool b = children.at(1)->evaluate(stack);
@@ -1059,8 +1245,10 @@ ostream& Inversion::print(ostream& os) const {
 //     | isnot_bitwise_or
 //     | is_bitwise_or
 Comparison::Comparison(Tokenizer *tokenizer) {
+    Logger::get_instance()->log(__FUNCTION__, DEBUG);
     this->tokenizer = tokenizer;
     parse();
+    Logger::get_instance()->log(__FUNCTION__ + (string)" - children.size() == " + to_string(children.size()), DEBUG);
 }
 void Comparison::parse() {
     children.push_back(new BitwiseOr(tokenizer));
@@ -1070,6 +1258,7 @@ void Comparison::parse() {
     }
 }
 PyObject Comparison::evaluate(Stack stack) {
+    Logger::get_instance()->log("Comparison::evaluate()", DEBUG);
     if (children.size() == 1) {
         return children.at(0)->evaluate(stack);
     }
@@ -1099,17 +1288,20 @@ ostream& Comparison::print(ostream& os) const {
 //     | bitwise_or '|' bitwise_xor 
 //     | bitwise_xor
 BitwiseOr::BitwiseOr(Tokenizer *tokenizer) {
+    Logger::get_instance()->log(__FUNCTION__, DEBUG);
     this->tokenizer = tokenizer;
     parse();
+    Logger::get_instance()->log(__FUNCTION__ + (string)" - children.size() == " + to_string(children.size()), DEBUG);
 }
 void BitwiseOr::parse() {
     children.push_back(new BitwiseXor(tokenizer));
-    while (peek().value == "|") {
-        eat("|");
+    while (peek("BitwiseOr").value == "|") {
+        eat("|", "BitwiseOr");
         children.push_back(new BitwiseXor(tokenizer));
     }
 }
 PyObject BitwiseOr::evaluate(Stack stack) {
+    Logger::get_instance()->log("BitwiseOr::evaluate()", DEBUG);
     if (children.size() == 1) {
         return children.at(0)->evaluate(stack);
     }
@@ -1135,17 +1327,20 @@ ostream& BitwiseOr::print(ostream& os) const {
 //     | bitwise_xor '^' bitwise_and 
 //     | bitwise_and
 BitwiseXor::BitwiseXor(Tokenizer *tokenizer) {
+    Logger::get_instance()->log(__FUNCTION__, DEBUG);
     this->tokenizer = tokenizer;
     parse();
+    Logger::get_instance()->log(__FUNCTION__ + (string)" - children.size() == " + to_string(children.size()), DEBUG);
 }
 void BitwiseXor::parse() {
     children.push_back(new BitwiseAnd(tokenizer));
-    while (peek().value == "^") {
-        eat("^");
+    while (peek("BitwiseXor").value == "^") {
+        eat("^", "BitwiseXor");
         children.push_back(new BitwiseAnd(tokenizer));
     }
 }
 PyObject BitwiseXor::evaluate(Stack stack) {
+    Logger::get_instance()->log("BitwiseXor::evaluate()", DEBUG);
     if (children.size() == 1) {
         return children.at(0)->evaluate(stack);
     }
@@ -1171,17 +1366,20 @@ ostream& BitwiseXor::print(ostream& os) const {
 //     | bitwise_and '&' shift_expr 
 //     | shift_expr
 BitwiseAnd::BitwiseAnd(Tokenizer *tokenizer) {
+    Logger::get_instance()->log(__FUNCTION__, DEBUG);
     this->tokenizer = tokenizer;
     parse();
+    Logger::get_instance()->log(__FUNCTION__ + (string)" - children.size() == " + to_string(children.size()), DEBUG);
 }
 void BitwiseAnd::parse() {
     children.push_back(new ShiftExpr(tokenizer));
-    while (peek().value == "&") {
-        eat("&");
+    while (peek("BitwiseAnd").value == "&") {
+        eat("&", "BitwiseAnd");
         children.push_back(new ShiftExpr(tokenizer));
     }
 }
 PyObject BitwiseAnd::evaluate(Stack stack) {
+    Logger::get_instance()->log("BitwiseAnd::evaluate()", DEBUG);
     if (children.size() == 1) {
         return children.at(0)->evaluate(stack);
     }
@@ -1208,17 +1406,20 @@ ostream& BitwiseAnd::print(ostream& os) const {
 //     | shift_expr '>>' sum 
 //     | sum
 ShiftExpr::ShiftExpr(Tokenizer *tokenizer) {
+    Logger::get_instance()->log(__FUNCTION__, DEBUG);
     this->tokenizer = tokenizer;
     parse();
+    Logger::get_instance()->log(__FUNCTION__ + (string)" - children.size() == " + to_string(children.size()), DEBUG);
 }
 void ShiftExpr::parse() {
     children.push_back(new Sum(tokenizer));
-    while (peek().value == "<<" || peek().value == ">>") {
+    while (peek("ShiftExpr").value == "<<" || peek("ShiftExpr").value == ">>") {
         children.push_back(new Op(tokenizer));
         children.push_back(new Sum(tokenizer));
     }
 }
 PyObject ShiftExpr::evaluate(Stack stack) {
+    Logger::get_instance()->log("ShiftExpr::evaluate()", DEBUG);
     if (children.size() == 1) {
         return children.at(0)->evaluate(stack);
     }
@@ -1249,17 +1450,20 @@ ostream& ShiftExpr::print(ostream& os) const {
 //     | sum '-' term 
 //     | term
 Sum::Sum(Tokenizer *tokenizer) {
+    Logger::get_instance()->log(__FUNCTION__, DEBUG);
     this->tokenizer = tokenizer;
     parse();
+    Logger::get_instance()->log(__FUNCTION__ + (string)" - children.size() == " + to_string(children.size()), DEBUG);
 }
 void Sum::parse() {
     children.push_back(new Term(tokenizer));
-    while(is_sum_op(peek().value)) {
+    while(is_sum_op(peek("Sum").value)) {
         children.push_back(new Op(tokenizer));
         children.push_back(new Term(tokenizer));
     }
 }
 PyObject Sum::evaluate(Stack stack) {
+    Logger::get_instance()->log("Sum::evaluate()", DEBUG);
     if (children.size() == 1) {
         return children.at(0)->evaluate(stack);
     }
@@ -1293,17 +1497,20 @@ ostream& Sum::print(ostream& os) const {
 //     | term '@' factor 
 //     | factor
 Term::Term(Tokenizer *tokenizer) {
+    Logger::get_instance()->log(__FUNCTION__, DEBUG);
     this->tokenizer = tokenizer;
     parse();
+    Logger::get_instance()->log(__FUNCTION__ + (string)" - children.size() == " + to_string(children.size()), DEBUG);
 }
 void Term::parse() {
     children.push_back(new Factor(tokenizer));
-    while(is_term_op(peek().value)) {
+    while(is_term_op(peek("Term").value)) {
         children.push_back(new Op(tokenizer));
         children.push_back(new Factor(tokenizer));
     }
 }
 PyObject Term::evaluate(Stack stack) {
+    Logger::get_instance()->log("Term::evaluate()", DEBUG);
     if (children.size() == 1) {
         return children.at(0)->evaluate(stack);
     }
@@ -1335,19 +1542,22 @@ ostream& Term::print(ostream& os) const {
 //     | '~' factor 
 //     | power
 Factor::Factor(Tokenizer *tokenizer) {
+    Logger::get_instance()->log(__FUNCTION__, DEBUG);
     this->tokenizer = tokenizer;
     parse();
+    Logger::get_instance()->log(__FUNCTION__ + (string)" - children.size() == " + to_string(children.size()), DEBUG);
 }
 void Factor::parse() {
-    if (is_factor_op(peek().value)) {
-        if (peek().value == "+") {
-            next_token();  // the '+' doesn't really do anything
+    if (is_factor_op(peek("Factor").value)) {
+        if (peek("Factor").value == "+") {
+            eat("+", "Factor");  // the '+' doesn't really do anything
         }
         children.push_back(new Op(tokenizer));
     }
     children.push_back(new Power(tokenizer));
 }
 PyObject Factor::evaluate(Stack stack) {
+    Logger::get_instance()->log("Factor::evaluate()", DEBUG);
     if (children.size() == 1) {
         return children.at(0)->evaluate(stack);
     }
@@ -1371,7 +1581,7 @@ PyObject Factor::evaluate(Stack stack) {
     if (op == "~") {
         return PyObject((int)(~val), "int");
     }
-    throw runtime_error("ERROR: reached end of Factor::evaluate() without returning");
+    throw runtime_error("reached end of Factor::evaluate() without returning");
 }
 ostream& Factor::print(ostream& os) const {
     for (AST *child : children) {
@@ -1387,17 +1597,20 @@ ostream& Factor::print(ostream& os) const {
 //     | await_primary '**' factor 
 //     | await_primary
 Power::Power(Tokenizer *tokenizer) {
+    Logger::get_instance()->log(__FUNCTION__, DEBUG);
     this->tokenizer = tokenizer;
     parse();
+    Logger::get_instance()->log(__FUNCTION__ + (string)" - children.size() == " + to_string(children.size()), DEBUG);
 }
 void Power::parse() {
     children.push_back(new AwaitPrimary(tokenizer));
-    if (peek().value == "**") {
-        eat("**");
+    if (peek("Power").value == "**") {
+        eat("**", "Power");
         children.push_back(new Factor(tokenizer));
     }
 }
 PyObject Power::evaluate(Stack stack) {
+    Logger::get_instance()->log("Power::evaluate()", DEBUG);
     if (children.size() == 1){
         return children.at(0)->evaluate(stack);
     }
@@ -1417,14 +1630,17 @@ ostream& Power::print(ostream& os) const {
 //     | AWAIT primary 
 //     | primary
 AwaitPrimary::AwaitPrimary(Tokenizer *tokenizer) {
+    Logger::get_instance()->log(__FUNCTION__, DEBUG);
     this->tokenizer = tokenizer;
     parse();
+    Logger::get_instance()->log(__FUNCTION__ + (string)" - children.size() == " + to_string(children.size()), DEBUG);
 }
 void AwaitPrimary::parse() {
     // TODO: implement this completely
     children.push_back(new Primary(tokenizer));
 }
 PyObject AwaitPrimary::evaluate(Stack stack) {
+    Logger::get_instance()->log("AwaitPrimary::evaluate()", DEBUG);
     return children.at(0)->evaluate(stack);
 }
 ostream& AwaitPrimary::print(ostream& os) const {
@@ -1445,34 +1661,39 @@ ostream& AwaitPrimary::print(ostream& os) const {
 //     | primary '[' slices ']' 
 //     | atom
 Primary::Primary(Tokenizer *tokenizer) {
+    Logger::get_instance()->log(__FUNCTION__, DEBUG);
     this->tokenizer = tokenizer;
     parse();
+    Logger::get_instance()->log(__FUNCTION__ + (string)" - children.size() == " + to_string(children.size()), DEBUG);
 }
 void Primary::parse() {
     // NOTE: this is supposed to be a left recusive production
-    // im keeping it simle atm but its likely that a while loop will
+    // im keeping it simple atm but its likely that a while loop will
     // be needed like Term, Sum, etc
     children.push_back(new Atom(tokenizer));
-    if (peek().value == ".") {
+    if (peek("Primary").value == ".") {
         // TODO: implement
-    } else if(peek().value == "(") {
-        children.push_back(new String(tokenizer));
+        throw runtime_error("Primary: '.' not implemented");
+    } else if(peek("Primary").value == "(") {
+        children.push_back(new _String(tokenizer));  // (
         children.push_back(new Arguments(tokenizer));
-        children.push_back(new String(tokenizer));
+        children.push_back(new _String(tokenizer));  // )
     }
 }
 PyObject Primary::evaluate(Stack stack) {
+    Logger::get_instance()->log("Primary::evaluate()", DEBUG);
     if (children.size() == 1) {
         return children.at(0)->evaluate(stack);
     }
     else {
         PyObject c1 = children.at(1)->evaluate(stack);
         if ((string)c1 == "(") {
-            return stack.call_function(
-                children.at(0)->evaluate(stack), children.at(2)->evaluate(stack));
+            PyObject func = children.at(0)->evaluate(stack);
+            PyObject args = children.at(2)->evaluate(stack);
+            return stack.call_function(func, args);
         }
     }
-    throw runtime_error("ERROR: reached end of Primary::evaluate() without returning");
+    throw runtime_error("reached end of Primary::evaluate() without returning");
 }
 ostream& Primary::print(ostream& os) const {
     for (AST *child : children) {
@@ -1541,31 +1762,34 @@ ostream& Slice::print(ostream& os) const {
 //     | (dict | set | dictcomp | setcomp)
 //     | '...' 
 Atom::Atom(Tokenizer *tokenizer) {
+    Logger::get_instance()->log(__FUNCTION__, DEBUG);
     this->tokenizer = tokenizer;
     parse();
+    Logger::get_instance()->log(__FUNCTION__ + (string)" - children.size() == " + to_string(children.size()), DEBUG);
 }
 void Atom::parse() {
-    if (is_number(peek().value)) {
+    if (is_number(peek("Atom").value)) {
         children.push_back(new Number(next_token()));
     } 
-    else if (peek().value == "True" || peek().value == "False") {
+    else if (peek("Atom").value == "True" || peek("Atom").value == "False") {
         children.push_back(new Bool(next_token()));
     }
-    else if (peek().value == "(") {
+    else if (peek("Atom").value == "(") {
         // TODO: figure out a cleaner way to determine if this should be
         // a tuple, group, or genexp
         children.push_back(new Tuple(tokenizer));
     }
-    else if (peek().value == "[") {
+    else if (peek("Atom").value == "[") {
         // TODO: figure out a cleaner way to determine if this should be
         // a list or listcomp
         children.push_back(new List(tokenizer));
     }
     else {
-        children.push_back(new String(next_token()));
+        children.push_back(new _String(next_token()));
     }
 }
 PyObject Atom::evaluate(Stack stack) {
+    Logger::get_instance()->log("Atom::evaluate()", DEBUG);
     return children.at(0)->evaluate(stack);
 }
 ostream& Atom::print(ostream& os) const {
@@ -1581,15 +1805,18 @@ ostream& Atom::print(ostream& os) const {
 // list:
 //     | '[' [star_named_expressions] ']'
 List::List(Tokenizer *tokenizer) {
+    Logger::get_instance()->log(__FUNCTION__, DEBUG);
     this->tokenizer = tokenizer;
     parse();
+    Logger::get_instance()->log(__FUNCTION__ + (string)" - children.size() == " + to_string(children.size()), DEBUG);
 }
 void List::parse() {
-    eat("[");
+    eat("[", "List");
     children.push_back(new StarNamedExpressions(tokenizer));
-    eat("]");
+    eat("]", "List");
 }
 PyObject List::evaluate(Stack stack) {
+    Logger::get_instance()->log("List::evaluate()", DEBUG);
     return PyObject(children.at(0)->evaluate(stack).as_list(), "list");
 }
 ostream& List::print(ostream& os) const {
@@ -1614,21 +1841,24 @@ ostream& List::print(ostream& os) const {
 // tuple:
 //     | '(' [star_named_expression ',' [star_named_expressions]  ] ')'
 Tuple::Tuple(Tokenizer *tokenizer) {
+    Logger::get_instance()->log(__FUNCTION__, DEBUG);
     this->tokenizer = tokenizer;
     parse();
+    Logger::get_instance()->log(__FUNCTION__ + (string)" - children.size() == " + to_string(children.size()), DEBUG);
 }
 void Tuple::parse() {
-    eat("(");
-    if (peek().value != ")") {
+    eat("(", "Tuple");
+    if (peek("Tuple").value != ")") {
         children.push_back(new StarNamedExpression(tokenizer));
-        eat(",");
+        eat(",", "Tuple");
     }
-    if (peek().value != ")") {
+    if (peek("Tuple").value != ")") {
         children.push_back(new StarNamedExpressions(tokenizer));
     }
-    eat(")");
+    eat(")", "Tuple");
 }
 PyObject Tuple::evaluate(Stack stack) {
+    Logger::get_instance()->log("Tuple::evaluate()", DEBUG);
     if (children.size() == 0) {
         return children.at(0)->evaluate(stack);
     }
@@ -1654,17 +1884,22 @@ ostream& Tuple::print(ostream& os) const {
 // arguments:
 //     | args [','] &')' 
 Arguments::Arguments(Tokenizer *tokenizer) {
+    Logger::get_instance()->log(__FUNCTION__, DEBUG);
     this->tokenizer = tokenizer;
     parse();
+    Logger::get_instance()->log(__FUNCTION__ + (string)" - children.size() == " + to_string(children.size()), DEBUG);
 }
 void Arguments::parse() {
-    children.push_back(new Args(tokenizer));
-    while (peek().value == ",") {
-        eat(",");
+    if (peek("Arguments").value != ")") {
         children.push_back(new Args(tokenizer));
+        while (peek("Arguments").value == ",") {
+            eat(",", "Arguments");
+            children.push_back(new Args(tokenizer));
+        }
     }
 }
 PyObject Arguments::evaluate(Stack stack) {
+    Logger::get_instance()->log("Arguments::evaluate()", DEBUG);
     vector<PyObject> results;
     for (AST *child : children) {
         results.push_back(child->evaluate(stack));
@@ -1672,10 +1907,13 @@ PyObject Arguments::evaluate(Stack stack) {
     return PyObject(results, "list");
 }
 ostream& Arguments::print(ostream& os) const {
-    for (int i=0; i < children.size()-1; i++) {
-        os << *(children[i]) << ",";
+    if (children.size() > 1) {
+        for (int i=0; i < children.size()-1; i++) {
+            os << *(children[i]) << ",";
+        }
+        os << *children.back();
     }
-    os << *children.back();
+    else if (children.size() == 1) os << *children.back();
     return os;
 }
 
@@ -1686,18 +1924,17 @@ ostream& Arguments::print(ostream& os) const {
 //     | ','.(starred_expression | named_expression !'=')+ [',' kwargs ] 
 //     | kwargs 
 Args::Args(Tokenizer *tokenizer) {
+    Logger::get_instance()->log(__FUNCTION__, DEBUG);
     this->tokenizer = tokenizer;
     parse();
+    Logger::get_instance()->log(__FUNCTION__ + (string)" - children.size() == " + to_string(children.size()), DEBUG);
 }
 void Args::parse() {
     //TODO: args are really complicated, im simplifying them for now
     children.push_back(new Expression(tokenizer));
 }
 PyObject Args::evaluate(Stack stack) {
-    if (children.size() != 1) {
-        throw runtime_error(
-            "ERROR: Args::evaluate() called with children of size: " + children.size());
-    }
+    Logger::get_instance()->log("Args::evaluate()", DEBUG);
     return children.at(0)->evaluate(stack);
 }
 ostream& Args::print(ostream& os) const {
@@ -1711,10 +1948,13 @@ ostream& Args::print(ostream& os) const {
 // Op
 
 Op::Op(Tokenizer *tokenizer) {
+    Logger::get_instance()->log(__FUNCTION__, DEBUG);
     this->tokenizer = tokenizer;
     token = next_token();
+    Logger::get_instance()->log(__FUNCTION__ + (string)" - token.value == '" + token.value + "'", DEBUG);
 }
 PyObject Op::evaluate(Stack stack) {
+    Logger::get_instance()->log("Op::evaluate()", DEBUG);
     return PyObject(token.value, "str");
 }
 ostream& Op::print(ostream& os) const {
@@ -1725,25 +1965,30 @@ ostream& Op::print(ostream& os) const {
 //===============================================================
 // String
 
-String::String(Token token) {
+_String::_String(Token token) {
+    Logger::get_instance()->log(__FUNCTION__, DEBUG);
     this->token = token;
     parse();
+    Logger::get_instance()->log(__FUNCTION__ + (string)" - this->value == '" + this->value + "'", DEBUG);
 }
-String::String(Tokenizer *tokenizer) {
+_String::_String(Tokenizer *tokenizer) {
+    Logger::get_instance()->log(__FUNCTION__, DEBUG);
     this->token = tokenizer->next_token();
     parse();
+    Logger::get_instance()->log(__FUNCTION__ + (string)" - this->value == '" + this->value + "'", DEBUG);
 }
-void String::parse() {
+void _String::parse() {
     if (token.value.size() > 0 && token.value.at(0) == '"') {
         this->value = token.value.substr(1, token.value.size()-2);
     } else {
         this->value = token.value;
     }
 }
-PyObject String::evaluate(Stack stack) {
+PyObject _String::evaluate(Stack stack) {
+    Logger::get_instance()->log("_String::evaluate()", DEBUG);
     return PyObject(this->value, "str");
 }
-ostream& String::print(ostream& os) const {
+ostream& _String::print(ostream& os) const {
     os << token.value;
     return os;
 }
@@ -1752,17 +1997,22 @@ ostream& String::print(ostream& os) const {
 // Number
 
 Number::Number(Token token) {
+    Logger::get_instance()->log(__FUNCTION__, DEBUG);
     this->token = token;
     parse();
+    Logger::get_instance()->log(__FUNCTION__ + (string)" - token.value == '" + token.value + "'", DEBUG);
 }
 Number::Number(Tokenizer *tokenizer) {
+    Logger::get_instance()->log(__FUNCTION__, DEBUG);
     this->token = tokenizer->next_token();
     parse();
+    Logger::get_instance()->log(__FUNCTION__ + (string)" - token.value == '" + token.value + "'", DEBUG);
 }
 void Number::parse() {
     this->is_int = this->token.value.find(".") == string::npos;
 }
 PyObject Number::evaluate(Stack stack) {
+    Logger::get_instance()->log("Number::evaluate()", DEBUG);
     if (this->is_int) {
         return PyObject(stoi(token.value), "int");
     }
@@ -1777,17 +2027,22 @@ ostream& Number::print(ostream& os) const {
 // Bool
 
 Bool::Bool(Token token) {
+    Logger::get_instance()->log(__FUNCTION__, DEBUG);
     this->token = token;
     parse();
+    Logger::get_instance()->log(__FUNCTION__ + (string)" - token.value == '" + token.value + "'", DEBUG);
 }
 Bool::Bool(Tokenizer *tokenizer) {
+    Logger::get_instance()->log(__FUNCTION__, DEBUG);
     this->token = token;
     parse();
+    Logger::get_instance()->log(__FUNCTION__ + (string)" - token.value == '" + token.value + "'", DEBUG);
 }
 void Bool::parse() {
     this->bool_value = token.value == "True";
 }
 PyObject Bool::evaluate(Stack stack) {
+    Logger::get_instance()->log("Bool::evaluate()", DEBUG);
     return PyObject(this->bool_value, "bool");
 }
 ostream& Bool::print(ostream& os) const {

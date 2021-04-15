@@ -1,9 +1,15 @@
+#pragma once
+#include "pyobject.fwd.h"
+#include "ast.fwd.h"
+
+
 #ifndef PYOBJECT_H
 #define PYOBJECT_H
 
 #include <string>
 #include <vector>
 #include <map>
+#include "ast.h"
 using namespace std;
 
 class PyObject {
@@ -14,7 +20,8 @@ private:
     bool b_value;
     vector<PyObject> li_value;
     map<string, PyObject> dict_value;
-    void *class_value;  // TODO: when implementing classes
+    void* class_value;  // TODO: when implementing classes
+    AST* func_value;
 
     bool is_valid_type(string type);
     void check_valid_type();
@@ -29,10 +36,12 @@ public:
     PyObject(bool b, string type);
     PyObject(vector<PyObject> li, string type);
     PyObject(map<string, PyObject> m, string type);
+    PyObject(AST* function, string type);
 
     string as_string() const;
     bool as_bool() const;
     vector<PyObject> as_list() const;
+    AST* get_function() const;
     void error_undefined(string op, string t1, string t2) const;
     void error_unsupported_op(string op, string t1, string t2) const;
     void error_unsupported_unary_op(string op, string t1) const;

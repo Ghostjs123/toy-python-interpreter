@@ -9,9 +9,8 @@
 #include "ast/ast_helpers.h"
 using namespace std;
 
-Parser::Parser(Tokenizer *tokenizer, string mode) {
+Parser::Parser(Tokenizer* tokenizer) {
     this->tokenizer = tokenizer;
-	this->mode = mode;
 }
 
 void Parser::advance_to_start() {
@@ -22,7 +21,7 @@ void Parser::advance_to_start() {
 	}
 }
 
-AST* Parser::parse() {
+AST* Parser::parse(string mode) {
     tokenizer->begin();
 	advance_to_start();
 	if (mode == "file") {

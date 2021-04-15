@@ -15,10 +15,10 @@ int main(int argc, char* argv[]) {
 	Tokenizer tokenizer(contents);
     tokenizer.print();
 
-    Parser parser(&tokenizer, "interactive");
-    Interactive parse_tree = parser.parse_interactive();
+    Parser parser(&tokenizer);
+    Interactive* parse_tree = dynamic_cast<Interactive*>(parser.parse("interactive"));
 
-	cout << endl << "AST as a string:" << endl << parse_tree << endl;
+	cout << endl << "AST as a string:" << endl << *parse_tree << endl;
 
 	return 0;
 }

@@ -3,11 +3,11 @@ default_args = -pedantic
 
 libs = util.o
 pyobject = pyobject.o
-stack = stack.o frame.o
+stack = stack.o # frame.o
 ast = ast.o ast_helpers.o
 
-tokenizer = tokenizer.o token.o $(libs)
-parser = parser.o $(tokenizer) $(pyobject) $(ast) $(stack) builtins.o
+tokenizer = tokenizer.o token.o logging.o $(libs) -lncurses
+parser = parser.o $(tokenizer) $(ast) $(pyobject) $(stack) builtins.o
 interpreter = interpreter.o $(parser)
 
 # default
@@ -50,43 +50,43 @@ clean:
 
 # src/
 
-tokenizer.o: src/tokenizer.cpp
+tokenizer.o: src/tokenizer.cpp src/tokenizer.h
 	g++ src/tokenizer.cpp $(includes) -c -o tokenizer.o
 
-parser.o: src/parser.cpp
+parser.o: src/parser.cpp src/parser.h
 	g++ src/parser.cpp $(includes) -c -o parser.o
 
-interpreter.o: src/interpreter.cpp
+interpreter.o: src/interpreter.cpp src/interpreter.h
 	g++ src/interpreter.cpp $(includes) -c -o interpreter.o
 
 # src/ast/
 
-ast_helpers.o: src/ast/ast_helpers.cpp
+ast_helpers.o: src/ast/ast_helpers.cpp src/ast/ast_helpers.h
 	g++ src/ast/ast_helpers.cpp $(includes) -c -o ast_helpers.o
 
-ast.o: src/ast/ast.cpp
+ast.o: src/ast/ast.cpp src/ast/ast.h
 	g++ src/ast/ast.cpp $(includes) -c -o ast.o
 
 # src/objects/
 
-builtins.o: src/objects/builtins.cpp
+builtins.o: src/objects/builtins.cpp src/objects/builtins.h
 	g++ src/objects/builtins.cpp $(includes) -c -o builtins.o
 
-pyobject.o: src/objects/pyobject.cpp
+pyobject.o: src/objects/pyobject.cpp src/objects/pyobject.h
 	g++ src/objects/pyobject.cpp $(includes) -c -o pyobject.o
 
-token.o: src/objects/token.cpp
+token.o: src/objects/token.cpp src/objects/token.h
 	g++ src/objects/token.cpp $(includes) -c -o token.o
 
 # src/stack/
 
-frame.o: src/stack/frame.cpp
-	g++ src/stack/frame.cpp $(includes) -c -o frame.o
-
-stack.o: src/stack/stack.cpp
+stack.o: src/stack/stack.cpp src/stack/stack.h
 	g++ src/stack/stack.cpp $(includes) -c -o stack.o
 
 # lib/
 
-util.o: lib/util.cpp
+util.o: lib/util.cpp lib/util.h
 	g++ lib/util.cpp $(includes) -c -o util.o
+
+logging.o: lib/logging.cpp lib/logging.h
+	g++ lib/logging.cpp $(includes) -c -o logging.o

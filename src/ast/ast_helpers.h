@@ -4,7 +4,7 @@
 #include <string>
 #include <vector>
 #include "tokenizer.h"
-#include "../objects/pyobject.h"
+#include "pyobject.h"
 using namespace std;
 
 bool in(string arr[], string val, size_t N);

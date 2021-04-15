@@ -4,6 +4,7 @@
 #include <vector>
 #include <map>
 #include "pyobject.h"
+#include "ast.h"
 using namespace std;
 
 // TODO: add sets
@@ -31,7 +32,7 @@ string trim_trailing_zeros(string s) {
 // constructors
 
 // valid types:
-// None, str, int, float, bool, list, dict, tuple, class
+// None, str, int, float, bool, list, dict, tuple, class, function
 
 PyObject::PyObject() {
     this->type = "None";
@@ -95,6 +96,11 @@ PyObject::PyObject(map<string, PyObject> m, string type) {
     this->type = type;
     this->check_valid_type();
 }
+PyObject::PyObject(AST* function, string type) {
+    this->func_value = function;
+    this->type = type;
+    this->check_valid_type();
+}
 
 // sets - TODO:
 
@@ -107,7 +113,7 @@ bool PyObject::is_valid_type(string type) {
            type == "int" || type == "float" ||
            type == "bool" || type == "list" ||
            type == "dict" || type == "tuple" ||
-           type == "class";
+           type == "class" || type == "function";
 }
 
 // NOTE: this method is mostly a spelling check atm
@@ -147,6 +153,19 @@ string PyObject::as_string() const {
     else if (this->type == "None") {
         return "None";
     }
+    else if (this->type == "tuple") {
+        string s = "(";
+        if (this->li_value.size() == 1) {
+            s += this->li_value.front().as_string() + ",";
+        } else {
+            for (int i=0; i < this->li_value.size()-1; i++) {
+                s += this->li_value.at(i).as_string() + ", ";
+            }
+            s += this->li_value.back().as_string();
+        }
+        s += ")";
+        return s;
+    }
     // TODO: handle list and dict to strings
     throw runtime_error("as_string() not defined for type " + this->type);
 }
@@ -175,7 +194,14 @@ vector<PyObject> PyObject::as_list() const {
     if (this->type == "tuple" || this->type == "list" || this->type == "set") {
         return this->li_value;
     }
-    throw runtime_error("ERROR: as_list() called on PyObject of type: \'" + this->type + "\'");
+    throw runtime_error("as_list() called on PyObject of type: \'" + this->type + "\'");
+}
+
+AST* PyObject::get_function() const {
+    if (this->type == "function") {
+        return this->func_value;
+    }
+    throw runtime_error("get_function() called on PyObject of type: \'" + this->type + "\'");
 }
 
 // error function for undefined ops

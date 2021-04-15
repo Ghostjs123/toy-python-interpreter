@@ -5,12 +5,12 @@
 #include <cstdlib>
 #include <string>
 #include <tuple>
+#include "logging.h"
 #include "util.h"
 #include "token.h"
 #include "tokenizer.h"
 using namespace std;
 
-#define DEBUG 1
 
 // NOTE: good source on how indentation is handled
 // https://docs.python.org/2.0/ref/indentation.html
@@ -308,7 +308,7 @@ void Tokenizer::comment_delim(vector<string> input, int ln, int& prev, int i, ve
             Token("NL", "", {ln+1, input[ln].size()}, {ln+1, input[ln].size()}));
         tokens.push_back(
             Token("NEWLINE", "", {ln+1, input[ln].size()}, {ln+1, input[ln].size()+1}));
-        this->eof(indents, ln+1);
+        eof(indents, ln+1);
         return;
     }
 }
@@ -347,6 +347,7 @@ void Tokenizer::tokenize() {
             string msg = "line " + to_string(ln+1) + "\nunindent does not match any outer indentation level";
             throw runtime_error(msg);
         }
+        // while (indents.size() > 1 && code_start < indents.back()) {
         while (code_start < indents.back()) {
             // lower indentation level
             indents.pop_back();
@@ -400,8 +401,6 @@ void Tokenizer::tokenize() {
 
 // public members
 Tokenizer::Tokenizer() {
-    vector<string> empty;
-    this->input = empty;
     pos = 0;
     length = 0;
 }
@@ -411,31 +410,58 @@ Tokenizer::Tokenizer(vector<string> input) {
 	this->tokenize();
 	pos = 0;
 	length = tokens.size();
+    this->log();
+}
+
+void Tokenizer::tokenize_input(string input) {
+    this->reset();
+    this->input.push_back(input);
+    this->tokenize();
+	pos = 0;
+	length = tokens.size();
+    this->log();
+}
+
+void Tokenizer::begin() {
+    pos = 0;
+}
+
+void Tokenizer::reset() {
+    this->input.clear();
+    this->tokens.clear();
+    pos = 0;
+    length = 0;
+}
+
+int Tokenizer::size() {
+    return this->length;
+}
+
+void Tokenizer::print() {
+    for (Token t : this->tokens) {
+        cout << t << endl;
+    }
 }
 
 Token Tokenizer::next_token() {
 	if (pos < length) {
 		return tokens[pos++];
 	}
-    throw runtime_error("ERROR: attempted to get next_token() with no tokens remaining");
+    throw runtime_error("attempted to get next_token() with no tokens remaining");
 }
 
 Token Tokenizer::peek() {
     if (this->pos < this->length) {
         return tokens[pos];
     }
-    throw runtime_error("ERROR: attempted to peek() with no tokens remaining");
+    throw runtime_error("attempted to peek() with no tokens remaining");
 }
 
 Token Tokenizer::lookahead(int amt) {
 	if (this->pos+amt < this->length) {
 	    return tokens[pos+amt];
 	}
-    throw runtime_error("ERROR: attempted to lookahead() with no tokens remaining");
-}
-
-void Tokenizer::begin() {
-    pos = 0;
+    return Token();
 }
 
 // combines tokens
@@ -449,13 +475,10 @@ void Tokenizer::compound(int amt, string sep) {
     }
 }
 
-int Tokenizer::size() {
-    return this->length;
-}
-
-void Tokenizer::print() {
+void Tokenizer::log() {
+    Logger* logger = Logger::get_instance();
     for (Token t : this->tokens) {
-        cout << t << endl;
+        logger->log((string)t, DEBUG);
     }
 }
 

@@ -9,18 +9,13 @@ using namespace std;
 
 class Parser {
     private:
-        Tokenizer *tokenizer;
+        Tokenizer* tokenizer;
 
         void advance_to_start();
     public:
-        string mode;
-
-        Parser(Tokenizer *tokenizer, string mode);
+        Parser(Tokenizer *tokenizer);
         
-        AST* parse();
-        
-        File parse_file();
-        Interactive parse_interactive();
+        AST* parse(string mode);
 };
 
 #endif

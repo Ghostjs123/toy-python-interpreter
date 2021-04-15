@@ -30,13 +30,17 @@ class Tokenizer {
 		Tokenizer();
 		Tokenizer(vector<string> input);
 
+		void tokenize_input(string input);
+		void begin();
+		void reset();
+		int size();
+		void print();
+		void log();
+
 		Token next_token();
 		Token peek();
 		Token lookahead(int amt);
-		void begin();
 		void compound(int amt, string sep="");
-		int size();
-		void print();
 };
 
 #endif
