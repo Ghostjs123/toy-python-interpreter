@@ -7,6 +7,7 @@ stack = stack.o # frame.o
 ast = ast.o ast_helpers.o
 
 tokenizer = tokenizer.o token.o logging.o $(libs) -lncurses
+tokenizer_debug = tokenizer_debug.o token.o logging.o $(libs) -lncurses
 parser = parser.o $(tokenizer) $(ast) $(pyobject) $(stack) builtins.o
 interpreter = interpreter.o $(parser)
 
@@ -17,8 +18,8 @@ mypy: $(interpreter)
 # mains for testing
 parser-main: tests/parser-main.cpp $(parser)
 	g++ tests/parser-main.cpp $(parser) $(default_args) $(includes) -D PARS_MAIN -o parser-main
-tokenizer-main: tests/tokenizer-main.cpp $(tokenizer)
-	g++ tests/tokenizer-main.cpp $(tokenizer) $(default_args) $(includes) -D TOK_MAIN -o tokenizer-main
+tokenizer-main: tests/tokenizer-main.cpp $(tokenizer_debug)
+	g++ tests/tokenizer-main.cpp $(tokenizer_debug) $(default_args) $(includes) -o tokenizer-main
 
 # test cases
 interpreter-tests: tests/interpreter-tests.cpp $(interpreter) 
@@ -51,7 +52,10 @@ clean:
 # src/
 
 tokenizer.o: src/tokenizer.cpp src/tokenizer.h
-	g++ src/tokenizer.cpp $(includes) -c -o tokenizer.o
+	g++ src/tokenizer.cpp -DDEBUG_TOK=0 $(includes) -c -o tokenizer.o
+
+tokenizer_debug.o: src/tokenizer.cpp src/tokenizer.h
+	g++ src/tokenizer.cpp -DDEBUG_TOK=1 $(includes) -c -o tokenizer_debug.o
 
 parser.o: src/parser.cpp src/parser.h
 	g++ src/parser.cpp $(includes) -c -o parser.o

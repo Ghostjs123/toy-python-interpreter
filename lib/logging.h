@@ -18,6 +18,7 @@ private:
     int mode;
     std::string fname;
     std::ofstream f;
+    std::string indent;
 
     std::string get_mode_string();
 protected:
@@ -39,6 +40,8 @@ public:
 
     void log(std::string msg, int mode);
     void set_mode(int mode);
+    void add_indent(int amt);
+    void sub_indent(int amt);
     void close();
 };
 

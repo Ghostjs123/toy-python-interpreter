@@ -20,12 +20,6 @@ using namespace std;
 
 
 // forward declares bc these need to know about eachother
-class NamedExpression;
-class Block;
-class IfStmt;
-class ElifStmt;
-class ElseBlock;
-
 class AST;
 class File;
 class Interactive;
@@ -95,6 +89,7 @@ class AST {
         Token peek(string func_name);
         Token lookahead(int amt);
         Token next_token();
+        void eat(string func_name);
         void eat(string exp_value, string func_name);
         void eat(string exp_type, string exp_value, string func_name);
         virtual PyObject evaluate(Stack stack);
@@ -277,6 +272,8 @@ class FinallyBlock: public AST {
 };
 class ReturnStmt: public AST {
     private:
+        PyObject return_value;
+
         void parse();
     public:
         ReturnStmt(Tokenizer *tokenizer);

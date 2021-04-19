@@ -244,7 +244,7 @@ void interacive_terminal() {
 
 void cleanup() {
 	// TODO: define destructors for all AST nodes and start deletion here
-	
+
 	Logger::get_instance()->close();
 }
 
@@ -255,19 +255,25 @@ int main(int argc, char* argv[]) {
 
 		Tokenizer tokenizer(contents);
 		if (argc > 2 && argv[2] == (string)"-v") {
-			tokenizer.print();
+			Logger::get_instance()->set_mode(DEBUG);
 		}
+		tokenizer.log();
 
-		Parser parser(&tokenizer);
-    	File* parse_tree = dynamic_cast<File*>(parser.parse("file"));
-		
-		cout << endl << "AST:" << endl << *parse_tree << endl;
+		try {
+			Parser parser(&tokenizer);
+			File* parse_tree = dynamic_cast<File*>(parser.parse("file"));
+			
+			cout << endl << "AST:" << endl << *parse_tree << endl;
 
-		Stack stack;
-		cout << endl << "stdout:" << endl;
-    	(*parse_tree).evaluate(stack);
+			Stack stack;
+			cout << endl << "stdout:" << endl;
+			(*parse_tree).evaluate(stack);
 
-		delete parse_tree;
+			delete parse_tree;
+		}
+		catch (exception& e) {
+			cout << "exception: " << e.what() << endl;
+		}
 
 	} else {
 		// interactive terminal

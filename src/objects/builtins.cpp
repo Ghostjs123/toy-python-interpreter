@@ -13,18 +13,6 @@ map<string, FnPtr> build_builtins() {
     return builtins;
 }
 
-tuple<bool, PyObject> call_builtin(map<string, FnPtr> builtins, string fname, vector<PyObject> args) {
-    FnPtr x;
-    try {
-        x = builtins.at(fname);
-    }
-    catch (out_of_range& e) {
-        return {false, PyObject()};
-    }
-    PyObject res = x(args);
-    return {true, res};
-}
-
 PyObject print(vector<PyObject> p) {
     if (p.size() > 0) {
         for (int i=0; i < p.size()-1; i++) {

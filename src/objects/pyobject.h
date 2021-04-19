@@ -9,7 +9,6 @@
 #include <string>
 #include <vector>
 #include <map>
-#include "ast.h"
 using namespace std;
 
 class PyObject {

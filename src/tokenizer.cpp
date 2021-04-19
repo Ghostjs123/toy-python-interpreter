@@ -77,16 +77,21 @@ string get_type(string s) {
     return "NAME";
 }
 
-// TODO: handle 2+ char op's
-
-// TODO: flush out error messages, ex:
-// File "python-samples/random_tests.py", line 7
-//     print("asd")
-//                ^
-// IndentationError: unindent does not match any outer indentation level
-
 //===============================================================
 // private members
+
+bool Tokenizer::is_delim(char c) {
+    // NOTE: adding '\r' and ' ' here as potential delims
+    return (delimiters + "\r ").find(c) != string::npos;
+}
+
+bool Tokenizer::is_delim_not_space(char c) {
+    return delimiters.find(c) != string::npos;
+}
+
+bool Tokenizer::is_delim_not_string(char c) {
+    return delimiters_not_string.find(c) != string::npos;
+}
 
 // NOTE: this is a ton of boilerplate, might be a more simple way to handle this
 bool Tokenizer::should_append_op(char c1, char c2, char c3) {
@@ -120,17 +125,7 @@ bool Tokenizer::should_append_op(char c1, char c2, char c3) {
     return false;
 }
 
-void Tokenizer::eof(vector<int> indents, int ln) {
-    while(indents.size() > 1) {
-        tokens.push_back(
-            Token("DEDENT", "", {ln+1, 0}, {ln+1, 0}));
-        indents.pop_back();
-    } 
-    tokens.push_back(
-        Token("ENDMARKER", "", {ln+1, 0}, {ln+1, 0}));
-}
-
-bool Tokenizer::normal_delim(vector<string> input, int ln, int& prev, int i) {
+bool Tokenizer::tokenize_default(vector<string> input, int ln, int& prev, int i) {
     string temp_s;
     int temp_i;
     char c1, c2, c3;
@@ -143,12 +138,14 @@ bool Tokenizer::normal_delim(vector<string> input, int ln, int& prev, int i) {
         if (should_append_op(c1, c2, c3)) {
             if (input[ln][prev] == '.' && input[ln][prev+1] == '.') {
                 temp_s = string(1, c1) + c2 + c3;
+                if (DEBUG_TOK) cout << "pushed in default 1: '" << temp_s << "'" << endl;
                 tokens.push_back(
                     Token(get_type(temp_s), temp_s, {ln+1, prev}, {ln+1, prev+3}));
                 prev = i+2;
             }
             else if (input[ln][i] != '.') {
                 temp_s = string(1, c1) + c2;
+                if (DEBUG_TOK) cout << "pushed in default 2: '" << temp_s << "'" << endl;
                 tokens.push_back(
                     Token(get_type(temp_s), temp_s, {ln+1, prev}, {ln+1, prev+2}));
                 prev = i+1;
@@ -159,26 +156,99 @@ bool Tokenizer::normal_delim(vector<string> input, int ln, int& prev, int i) {
     temp_s = sub(input[ln], prev, i);
     if (ltrim(temp_s) == "") return true;  // sometimes whitespace slips through here
     
-    tokens.push_back(
-        Token(get_type(temp_s), temp_s, {ln+1, prev}, {ln+1, i}));
+    if (DEBUG_TOK) cout << "pushed in default 3: '" << temp_s << "'" << endl;
+    if (prev == i) {
+        tokens.push_back(
+            Token(get_type(temp_s), temp_s, {ln+1, prev}, {ln+1, i+1}));
+        prev = i + 1;
+    } else {
+        tokens.push_back(
+            Token(get_type(temp_s), temp_s, {ln+1, prev}, {ln+1, i}));
+        prev = i;
+    }
     
-    if (input[ln][i] == ' ') {
+    if (input[ln][prev] == ' ') {
         // NOTE: could be 1 or more spaces, want to skip all of them
-        temp_i = i+1;
+        temp_i = prev+1;
         while (temp_i < input[ln].size() && input[ln][temp_i] == ' ') {
             temp_i++;
         }
+        if (is_delim_not_space(input[ln][temp_i])) {
+            temp_i--;
+        }
         prev = temp_i;
     }
-    else {
-        if (prev == i) {
-            prev = i + 1;
+    // else {
+    //     if (prev == i) {
+    //         prev = i + 1;
+    //     }
+    //     else {
+    //         prev = i;
+    //     }
+    // }
+    return false;
+}
+
+void Tokenizer::tokenize_string(vector<string> input, int ln, int& prev, int i, 
+                            bool& in_str, int& string_line_start, int& string_column_start,
+                            string& str_value, string& termination_char) {
+    if (in_str) {
+        // make sure the delimiter terminates the string
+        if (input[ln][i] == '"') {
+            if (input[ln][i+1] == '"' && input[ln][i+2] == '"') {
+                if (termination_char != "\"\"\"") return;
+            }
+            else if (termination_char != "\"") return;
+        }
+        else if (termination_char != "'") return;
+        
+        // update str_value
+        if (string_line_start < ln) {
+            // dont want to ommit leading whitespace, prev = code_start at this point
+            str_value += sub(input[ln], 0, i);
         }
         else {
-            prev = i;
+            str_value += sub(input[ln], prev, i);
         }
+        str_value += termination_char;
+
+        // push STRING token
+        if (termination_char == "\"\"\"") {
+            if (DEBUG_TOK) cout << "pushed in string: '" << str_value << "'" << endl;
+            tokens.push_back(
+                Token("STRING", str_value, {string_line_start+1, string_column_start}, {ln+1, i+3}));
+            prev = i+3;
+        }
+        else {
+            if (DEBUG_TOK) cout << "pushed in string: '" << str_value << "'" << endl;
+            tokens.push_back(
+                Token("STRING", str_value, {string_line_start+1, string_column_start}, {ln+1, i+1}));
+            prev = i+1;
+        }
+        in_str = false;
     }
-    return false;
+    else {
+        // starting a new string
+        in_str = true;
+        string_line_start = ln;
+        string_column_start = i;
+        // check for " vs """ vs '
+        if (input[ln][i] == '"') {
+            if (input[ln][i+1] == '"' && input[ln][i+2] == '"') {
+                termination_char = "\"\"\"";
+                prev = i+3;
+            } 
+            else {
+                termination_char = "\"";
+                prev = i+1;
+            }
+        }
+        else {
+            termination_char = "'";
+            prev = i+1;
+        }
+        str_value = termination_char;
+    }
 }
 
 void Tokenizer::end_of_line(vector<string> input, int ln, int& prev, int i, 
@@ -202,24 +272,35 @@ void Tokenizer::end_of_line(vector<string> input, int ln, int& prev, int i,
         // push the remaining token if there is one
         if (prev != i) {
             temp_s = sub(input[ln], prev, i);
+            if (DEBUG_TOK) cout << "pushed in eol: '" << temp_s << "'" << endl;
             tokens.push_back(
                 Token(get_type(temp_s), temp_s, {ln+1, prev}, {ln+1, i}));
             prev = i;
-            if (input[ln][i] != '\r' && delimiters.find(input[ln][i]) != string::npos) {
+            if (input[ln][i] != '\r' && is_delim(input[ln][i])) {
                 // this should only be reached if the line does not contain a carriage return
                 // as its last char AND there is a single character token remaining
                 temp_s = sub(input[ln], prev, i);
+                if (DEBUG_TOK) cout << "pushed in eol: '" << temp_s << "'" << endl;
                 tokens.push_back(
                     Token(get_type(temp_s), temp_s, {ln+1, prev}, {ln+1, i+1}));
                 prev = i+1;
             }
+        } 
+        else if (prev == i && is_delim_not_space(input[ln][i])) {
+            temp_s = string(1, input[ln][i]);
+            if (DEBUG_TOK) cout << "pushed in eol: '" << temp_s << "'" << endl;
+            tokens.push_back(
+                Token(get_type(temp_s), temp_s, {ln+1, prev}, {ln+1, i=1}));
+            prev = i;
         }
         // push the NEWLINE
         if (input[ln][i] == '\r') {
+            if (DEBUG_TOK) cout << "pushed in eol: '" << "NEWLINE" << "'" << endl;
             tokens.push_back(
                 Token("NEWLINE", "\\r\\n", {ln+1, i}, {ln+1, i+2}));
         }
         else {
+            if (DEBUG_TOK) cout << "pushed in eol: '" << "NEWLINE" << "'" << endl;
             tokens.push_back(
                 Token("NEWLINE", "", {ln+1, prev}, {ln+1, prev+1}));
         }
@@ -227,91 +308,49 @@ void Tokenizer::end_of_line(vector<string> input, int ln, int& prev, int i,
     // NOTE: dont want to push a NEWLINE if the string will continue on
 }
 
-void Tokenizer::string_delim(vector<string> input, int ln, int& prev, int i, 
-                            bool& in_str, int& string_line_start, int& string_column_start,
-                            string& str_value, string termination_char) {
-    if (in_str) {
-        // make sure the delimiter terminates the string
-        if (input[ln][i] == '"') {
-            if (input[ln][i+1] == '"' && input[ln][i+2] == '"') {
-                if (termination_char != "\"\"\"") return;
-            }
-            else if (termination_char != "\"") return;
-        }
-        else if (termination_char != "'") return;
-        
-        // update str_value
-        if (string_line_start < ln) {
-            // dont want to ommit leading whitespace, prev = code_start at this point
-            str_value += sub(input[ln], 0, i);
-        }
-        else {
-            str_value += sub(input[ln], prev, i);
-        }
-        str_value += termination_char;
-
-        // push STRING token
-        if (termination_char == "\"\"\"") {
-            tokens.push_back(
-                Token("STRING", str_value, {string_line_start+1, string_column_start}, {ln+1, i+3}));
-            prev = i+3;
-        }
-        else {
-            tokens.push_back(
-                Token("STRING", str_value, {string_line_start+1, string_column_start}, {ln+1, i+1}));
-            prev = i+1;
-        }
-        in_str = false;
-    }
-    else {
-        // starting a new string
-        in_str = true;
-        string_line_start = ln;
-        string_column_start = i;
-        // check for " vs """
-        if (input[ln][i] == '"') {
-            if (input[ln][i+1] == '"' && input[ln][i+2] == '"') {
-                termination_char = "\"\"\"";
-                prev = i+3;
-            } 
-            else {
-                termination_char = "\"";
-                prev = i+1;
-            }
-        }
-        else {
-            termination_char = "'";
-            prev = i+1;
-        }
-        str_value = termination_char;
-    }
-}
-
-void Tokenizer::comment_delim(vector<string> input, int ln, int& prev, int i, vector<int> indents) {
+void Tokenizer::tokenize_comment(vector<string> input, int ln, int& prev, int i, vector<int> indents) {
     string temp_s;
     int temp_i;
 
     if (prev != i) {
         // push remaining token if there is one
         temp_s = sub(input[ln], prev, i);
+        if (DEBUG_TOK) cout << "pushed in comment: '" << temp_s << "'" << endl;
         tokens.push_back(
             Token(get_type(temp_s), temp_s, {ln+1, prev}, {ln+1, i}));
         prev = i;
     }
     temp_i = input[ln].find_last_not_of("\r")+1;
+    if (DEBUG_TOK) cout << "pushed in comment: '" << sub(input[ln], i, temp_i) << "'" << endl;
     tokens.push_back(
         Token("COMMENT", sub(input[ln], i, temp_i), {ln+1, i}, {ln+1, temp_i}));
     prev = temp_i;
     if (input[ln].find('\r') == string::npos) {
         // weird stuff happens if the comment is the last line of the file with no '\r'
+        if (DEBUG_TOK) cout << "pushed in comment: '" << "NL" << "'" << endl;
         tokens.push_back(
             Token("NL", "", {ln+1, input[ln].size()}, {ln+1, input[ln].size()}));
+        if (DEBUG_TOK) cout << "pushed in comment: '" << "NEWLINE" << "'" << endl;
         tokens.push_back(
             Token("NEWLINE", "", {ln+1, input[ln].size()}, {ln+1, input[ln].size()+1}));
         eof(indents, ln+1);
         return;
     }
 }
+
+void Tokenizer::eof(vector<int> indents, int ln) {
+    while(indents.size() > 1) {
+        if (DEBUG_TOK) cout << "pushed in eof: '" << "DEDENT" << "'" << endl;
+        tokens.push_back(
+            Token("DEDENT", "", {ln+1, 0}, {ln+1, 0}));
+        indents.pop_back();
+    }
+    
+    if (DEBUG_TOK) cout << "pushed in eof: '" << "ENDMARKER" << "'" << endl;
+    tokens.push_back(
+        Token("ENDMARKER", "", {ln+1, 0}, {ln+1, 0}));
+}
+
 
 void Tokenizer::tokenize() {
     const string whitespace = "\n\r\t ";
@@ -358,18 +397,22 @@ void Tokenizer::tokenize() {
         prev = code_start;
         // iterate over each character in the line
         for (int i=code_start; i < input[ln].size(); i++) {
-            if (i < prev) continue;  // happens with """ and whitespace
+            if (i < prev) {
+                if (DEBUG_TOK) cout << "s: " << +input[ln][i] << endl;
+                continue;  // happens with """ and whitespace
+            }
+            if (DEBUG_TOK) cout << +input[ln][i] << endl;
 
             // found a delimiter
-            // NOTE: adding '\r' and ' ' here as potential delims
-            if ((delimiters + "\r ").find(input[ln][i]) != string::npos) {
+            if (is_delim(input[ln][i])) {
+                if (DEBUG_TOK) cout << "delim: '" << +input[ln][i] << "'" << endl;
                 if (input[ln][i] == '#') {
                     // comment found
-                    comment_delim(input, ln, prev, i, indents);
+                    tokenize_comment(input, ln, prev, i, indents);
                 }
                 else if (input[ln][i] == '"' || input[ln][i] == '\'') {
                     // string delimiter found (start or termination)
-                    string_delim(input, ln, prev, i, 
+                    tokenize_string(input, ln, prev, i, 
                             in_str, string_line_start, string_column_start,
                             str_value, termination_char);
                 }
@@ -387,9 +430,9 @@ void Tokenizer::tokenize() {
                 }
                 else {
                     // normal delimiter
-                    normal_delim(input, ln, prev, i);
-                    while ((delimiters + "\r ").find(input[ln][prev]) != string::npos) {
-                        if (normal_delim(input, ln, prev, prev+1)) break;
+                    tokenize_default(input, ln, prev, i);
+                    while (is_delim_not_string(input[ln][prev])) {
+                        if (tokenize_default(input, ln, prev, prev+1)) break;
                     }
                 }
             }
@@ -440,6 +483,22 @@ int Tokenizer::size() {
 void Tokenizer::print() {
     for (Token t : this->tokens) {
         cout << t << endl;
+    }
+}
+
+void Tokenizer::find_next() {
+    // NL's are strictly empty lines, skipping them here
+    // also skipping comments here
+    while(tokens[pos].type == "NL" || tokens[pos].type == "COMMENT") {
+        if (tokens[pos].type == "NL") {
+            pos++;
+        }
+        else if (tokens[pos].type == "COMMENT") {
+            pos++;
+            if (tokens[pos].type == "NEWLINE") {  // should always be true
+                pos++;
+            }
+        }
     }
 }
 
