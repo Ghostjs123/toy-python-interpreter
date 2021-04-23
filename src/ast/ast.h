@@ -90,8 +90,8 @@ class AST {
         Token lookahead(int amt);
         Token next_token();
         void eat(string func_name);
-        void eat(string exp_value, string func_name);
-        void eat(string exp_type, string exp_value, string func_name);
+        void eat_value(string exp_value, string func_name);
+        void eat_type(string exp_type, string func_name);
         virtual PyObject evaluate(Stack stack);
         friend ostream& operator<<(ostream& os, const AST& ast);
         virtual ostream& print(ostream& os) const;

@@ -127,22 +127,47 @@ vector<Token> parse_tokens(string result) {
 	return python_tokens;
 }
 
-bool compare(string fname, Tokenizer tokenizer) {
+void print_mismatch(Tokenizer tokenizer, Token prev, Token curr, vector<Token> python_tokens, int i) {
+	cout << endl << "Tokens did not match on line: " << curr.line_start << endl;
+	cout << "mine:" << endl;
+	if (prev != Token()) {
+		cout << prev << endl 
+			 << curr << endl 
+			 << tokenizer.next_token() << endl;
+	}
+	else {
+		cout << curr << endl 
+			 << tokenizer.next_token() << endl;
+	}
+	cout << "theirs:" << endl;
+	if (i > 0) {
+		cout << python_tokens.at(i-1) << endl 
+			 << python_tokens.at(i) << endl 
+			 << python_tokens.at(i+1) << endl;
+	}
+	else {
+		cout << python_tokens.at(i) << endl
+			 << python_tokens.at(i+1) << endl;
+	}
+}
+
+void compare(string fname, Tokenizer tokenizer) {
 	string cmd = "python3 -m tokenize " + fname;
 	string result = execute_python_tokenizer(cmd.c_str());
 	vector<Token> python_tokens = parse_tokens(result);
 	python_tokens.erase(python_tokens.begin());  // delete encoding token
 
 	Token t = python_tokens.at(0);  // ignore initial value
+	Token prev = Token();
 	for (int i=0; i < python_tokens.size(); i++) {
 		if (python_tokens.at(i) != (t = tokenizer.next_token())) {
-			cout << endl << "Tokens did not match on line: " << t.line_start << " column: " << t.column_start << endl;
-			cout << "mine:    " << t << endl;
-			cout << "theirs:  " << python_tokens.at(i) << endl;
-			return false;
+			print_mismatch(tokenizer, prev, t, python_tokens, i);
+			cout << endl << "Tokens DID NOT match 'python -m tokenize'" << endl;
+			return;
 		}
+		prev = t;
 	}
-	return true;
+	cout << endl << "Tokens match 'python -m tokenize'" << endl;
 }
 
 int main(int argc, char* argv[]) {
@@ -163,12 +188,7 @@ int main(int argc, char* argv[]) {
 	tokenizer.print();
 
 	if (argc == 3 && argv[2] == (string)"-c") {
-		bool match = compare(argv[1], tokenizer);
-		if (match) {
-			cout << endl << "Tokens match Python" << endl;
-		} else {
-			cout << endl << "Tokens DID NOT match Python" << endl;
-		}
+		compare(argv[1], tokenizer);
 	}
 
 	return 0;

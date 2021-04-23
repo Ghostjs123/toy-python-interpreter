@@ -16,6 +16,7 @@ class Token {
 		Token(string type, string value, tuple<int, int> start, tuple<int, int> end);
 
 		void append(string s, Token t);
+		string as_string();
         friend ostream& operator<<(ostream& os, const Token& token);
 		friend bool operator==(const Token& lhs, const Token& rhs);
 		friend bool operator!=(const Token& lhs, const Token& rhs);

@@ -41,6 +41,14 @@ void Token::append(string s, Token t) {
     this->column_end = t.column_end;
 }
 
+string Token::as_string() {
+    string pos = to_string(line_start) + "," 
+               + to_string(column_start) + "-" 
+               + to_string(line_end) + "," 
+               + to_string(column_end) + ":";
+    return pos + "\t" + type + "\t\'" + value + "\'"; 
+}
+
 ostream& operator<<(ostream& os, const Token& token) {
     string pos = to_string(token.line_start) + "," 
                + to_string(token.column_start) + "-" 

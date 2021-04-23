@@ -48,24 +48,25 @@ Token AST::lookahead(int amt) {
 }
 Token AST::next_token() {
     tokenizer->find_next();
-    return tokenizer->next_token();
+    Token t = tokenizer->next_token();
+    log(": " + t.as_string(), DEBUG);
+    return t;
 }
 void AST::eat(string func_name) {
-    next_token();
+    Token next = next_token();
 }
-void AST::eat(string exp_value, string func_name) {
+void AST::eat_value(string exp_value, string func_name) {
     Token next = next_token();
     if (next.value != exp_value) {
         throw runtime_error("ate '" + next.value + "' expected '" 
                             + exp_value + "' in '" + func_name + "'");
     }
 }
-void AST::eat(string exp_type, string exp_value, string func_name) {
+void AST::eat_type(string exp_type, string func_name) {
     Token next = next_token();
-    if (next.type != exp_type && next.value != exp_value) {
-        throw runtime_error("ate " + next.type + " '" + next.value
-                            + "' expected " + exp_type + " '" + exp_value + "' in '"
-                            + func_name + "'");
+    if (next.type != exp_type) {
+        throw runtime_error("ate '" + next.type + "' expected '" 
+                            + exp_type + "' in '" + func_name + "'");
     }
 }
 PyObject AST::evaluate(Stack stack) {
@@ -100,7 +101,7 @@ void File::parse() {
     while (peek("File").type != "ENDMARKER") {
         children.push_back(new Statements(tokenizer));
     }
-    eat("ENDMARKER", "", "File");
+    eat_type("ENDMARKER", "File");
 }
 PyObject File::evaluate(Stack stack) {
     log("File::evaluate()", DEBUG); add_indent(2);
@@ -229,11 +230,11 @@ StatementNewline::StatementNewline(Tokenizer *tokenizer) {
 }
 void StatementNewline::parse() {
     if (peek("StatementNewline").type == "NEWLINE") {
-        eat("NEWLINE", "", "StatementNewline");
+        eat_type("NEWLINE", "StatementNewline");
     } else if (peek("StatementNewline").type == "NL") {
-        eat("NL", "", "StatementNewline");
+        eat_type("NL", "StatementNewline");
     } else if (peek("StatementNewline").type == "ENDMARKER") {
-        eat("ENDMARKER", "", "StatementNewline");
+        eat_type("ENDMARKER", "StatementNewline");
     } else {
         CompoundStmt *temp = new CompoundStmt(tokenizer);
         if (temp->children.size() == 0) {
@@ -241,7 +242,7 @@ void StatementNewline::parse() {
             children.push_back(new SimpleStmt(tokenizer));
         } else {
             children.push_back(temp);
-            eat("NEWLINE", "", "StatementNewline");
+            eat_type("NEWLINE", "StatementNewline");
         }
     }
 }
@@ -275,7 +276,7 @@ SimpleStmt::SimpleStmt(Tokenizer *tokenizer) {
 void SimpleStmt::parse() {
     // TODO: grammar needs to support ;
     children.push_back(new SmallStmt(tokenizer));
-    eat("NEWLINE", "", "SimpleStmt");
+    eat_type("NEWLINE", "SimpleStmt");
 }
 PyObject SimpleStmt::evaluate(Stack stack) {
     log("SimpleStmt::evaluate()", DEBUG); add_indent(2);
@@ -470,9 +471,9 @@ IfStmt::IfStmt(Tokenizer *tokenizer) {
     log(__FUNCTION__ + (string)" - children.size() == " + to_string(children.size()), DEBUG);
 }
 void IfStmt::parse() {
-    eat("if", "IfStmt");
+    eat_value("if", "IfStmt");
     children.push_back(new NamedExpression(tokenizer));
-    eat(":", "IfStmt");
+    eat_value(":", "IfStmt");
     children.push_back(new Block(tokenizer));
     // NOTE: if its an if-elif-else, 
     //  the else block should end up in the ElifStmt production
@@ -528,9 +529,9 @@ void ElifStmt::parse() {
     NamedExpression *t1;
     Block *t2;
     while (peek("ElifStmt").value == "elif") {
-        eat("elif", "ElifStmt");
+        eat_value("elif", "ElifStmt");
         t1 = new NamedExpression(tokenizer);
-        eat(":", "ElifStmt");
+        eat_value(":", "ElifStmt");
         t2 = new Block(tokenizer);
         _elifs[t1] = t2;
     }
@@ -584,8 +585,8 @@ ElseBlock::ElseBlock(Tokenizer *tokenizer) {
     log(__FUNCTION__ + (string)" - children.size() == " + to_string(children.size()), DEBUG);
 }
 void ElseBlock::parse() {
-    eat("else", "ElseBlock");
-    eat(":", "ElseBlock");
+    eat_value("else", "ElseBlock");
+    eat_value(":", "ElseBlock");
     children.push_back(new Block(tokenizer));
 }
 PyObject ElseBlock::evaluate(Stack stack) {
@@ -815,7 +816,7 @@ ReturnStmt::ReturnStmt(Tokenizer *tokenizer) {
     log(__FUNCTION__ + (string)" - children.size() == " + to_string(children.size()), DEBUG);
 }
 void ReturnStmt::parse() {
-    eat("return", "ReturnStmt");
+    eat_value("return", "ReturnStmt");
     children.push_back(new StarExpressions(tokenizer));
 }
 PyObject ReturnStmt::evaluate(Stack stack) {
@@ -874,16 +875,16 @@ FunctionDefRaw::FunctionDefRaw(Tokenizer *tokenizer) {
     log(__FUNCTION__ + (string)" - children.size() == " + to_string(children.size()), DEBUG);
 }
 void FunctionDefRaw::parse() {
-    eat("def", "FunctionDefRaw");
+    eat_value("def", "FunctionDefRaw");
     this->name = next_token().value;
-    eat("(", "FunctionDefRaw");
+    eat_value("(", "FunctionDefRaw");
     vector<AST*> params;
     while (peek("FunctionDefRaw").value != ")") {
         params.push_back(new _String(tokenizer));
     }
     this->params = params;
-    eat(")", "FunctionDefRaw");
-    eat(":", "FunctionDefRaw");
+    eat_value(")", "FunctionDefRaw");
+    eat_value(":", "FunctionDefRaw");
     this->body = new Block(tokenizer);
 }
 PyObject FunctionDefRaw::evaluate(Stack stack) {
@@ -921,13 +922,23 @@ Block::Block(Tokenizer *tokenizer) {
     log(__FUNCTION__ + (string)" - children.size() == " + to_string(children.size()), DEBUG);
 }
 void Block::parse() {
-    eat("NEWLINE", "", "Block");
-    this->indent = peek("Block").value;
-    eat("INDENT", "", "Block");
-    while (peek("Block").type != "DEDENT") {
+    // the NEWLINE can be optional, for instance one liner function like
+    // def a(): return 1
+    // if this happens it will also not have an INDENT or DEDENT
+    // consequently it will only have 1 Statement
+    if (peek("Block").type == "NEWLINE") {
+        eat_type("NEWLINE", "Block");
+        this->indent = peek("Block").value;
+        eat_type("INDENT", "Block");
+        while (peek("Block").type != "DEDENT") {
+            children.push_back(new Statement(tokenizer));
+        }
+        eat_type("DEDENT", "Block");
+    }
+    else {
+        this->indent = "";
         children.push_back(new Statement(tokenizer));
     }
-    eat("DEDENT", "", "Block");
 }
 PyObject Block::evaluate(Stack stack) {
     log("Block::evaluate()", DEBUG); add_indent(2);
@@ -1041,7 +1052,7 @@ StarNamedExpressions::StarNamedExpressions(Tokenizer *tokenizer) {
 void StarNamedExpressions::parse() {
     children.push_back(new StarNamedExpression(tokenizer));
     while (peek("StarNamedExpressions").value == ",") {
-        eat(",", "StarNamedExpressions");
+        eat_value(",", "StarNamedExpressions");
         children.push_back(new StarNamedExpression(tokenizer));
     }
 }
@@ -1228,7 +1239,7 @@ Disjunction::Disjunction(Tokenizer *tokenizer) {
 void Disjunction::parse() {
     children.push_back(new Conjunction(tokenizer));
     while(peek("Disjunction").value == "or") {
-        eat("or", "Disjunction");
+        eat_value("or", "Disjunction");
         children.push_back(new Conjunction(tokenizer));
     }
 }
@@ -1271,7 +1282,7 @@ Conjunction::Conjunction(Tokenizer *tokenizer) {
 void Conjunction::parse() {
     children.push_back(new Inversion(tokenizer));
     while(peek("Conjunction").value == "and") {
-        eat("and", "Conjunction");
+        eat_value("and", "Conjunction");
         children.push_back(new Inversion(tokenizer));
     }
 }
@@ -1409,7 +1420,7 @@ BitwiseOr::BitwiseOr(Tokenizer *tokenizer) {
 void BitwiseOr::parse() {
     children.push_back(new BitwiseXor(tokenizer));
     while (peek("BitwiseOr").value == "|") {
-        eat("|", "BitwiseOr");
+        eat_value("|", "BitwiseOr");
         children.push_back(new BitwiseXor(tokenizer));
     }
 }
@@ -1452,7 +1463,7 @@ BitwiseXor::BitwiseXor(Tokenizer *tokenizer) {
 void BitwiseXor::parse() {
     children.push_back(new BitwiseAnd(tokenizer));
     while (peek("BitwiseXor").value == "^") {
-        eat("^", "BitwiseXor");
+        eat_value("^", "BitwiseXor");
         children.push_back(new BitwiseAnd(tokenizer));
     }
 }
@@ -1495,7 +1506,7 @@ BitwiseAnd::BitwiseAnd(Tokenizer *tokenizer) {
 void BitwiseAnd::parse() {
     children.push_back(new ShiftExpr(tokenizer));
     while (peek("BitwiseAnd").value == "&") {
-        eat("&", "BitwiseAnd");
+        eat_value("&", "BitwiseAnd");
         children.push_back(new ShiftExpr(tokenizer));
     }
 }
@@ -1687,7 +1698,7 @@ Factor::Factor(Tokenizer *tokenizer) {
 void Factor::parse() {
     if (is_factor_op(peek("Factor").value)) {
         if (peek("Factor").value == "+") {
-            eat("+", "Factor");  // the '+' doesn't really do anything
+            eat_value("+", "Factor");  // the '+' doesn't really do anything
         }
         children.push_back(new Op(tokenizer));
     }
@@ -1746,7 +1757,7 @@ Power::Power(Tokenizer *tokenizer) {
 void Power::parse() {
     children.push_back(new AwaitPrimary(tokenizer));
     if (peek("Power").value == "**") {
-        eat("**", "Power");
+        eat_value("**", "Power");
         children.push_back(new Factor(tokenizer));
     }
 }
@@ -1970,9 +1981,9 @@ List::List(Tokenizer *tokenizer) {
     log(__FUNCTION__ + (string)" - children.size() == " + to_string(children.size()), DEBUG);
 }
 void List::parse() {
-    eat("[", "List");
+    eat_value("[", "List");
     children.push_back(new StarNamedExpressions(tokenizer));
-    eat("]", "List");
+    eat_value("]", "List");
 }
 PyObject List::evaluate(Stack stack) {
     log("List::evaluate()", DEBUG); add_indent(2);
@@ -2009,15 +2020,15 @@ Tuple::Tuple(Tokenizer *tokenizer) {
     log(__FUNCTION__ + (string)" - children.size() == " + to_string(children.size()), DEBUG);
 }
 void Tuple::parse() {
-    eat("(", "Tuple");
+    eat_value("(", "Tuple");
     if (peek("Tuple").value != ")") {
         children.push_back(new StarNamedExpression(tokenizer));
-        eat(",", "Tuple");
+        eat_value(",", "Tuple");
     }
     if (peek("Tuple").value != ")") {
         children.push_back(new StarNamedExpressions(tokenizer));
     }
-    eat(")", "Tuple");
+    eat_value(")", "Tuple");
 }
 PyObject Tuple::evaluate(Stack stack) {
     log("Tuple::evaluate()", DEBUG); add_indent(2);
@@ -2059,7 +2070,7 @@ void Arguments::parse() {
     if (peek("Arguments").value != ")") {
         children.push_back(new Args(tokenizer));
         while (peek("Arguments").value == ",") {
-            eat(",", "Arguments");
+            eat_value(",", "Arguments");
             children.push_back(new Args(tokenizer));
         }
     }

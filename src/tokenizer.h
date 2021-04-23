@@ -21,14 +21,14 @@ class Tokenizer {
 		bool is_delim_not_space(char c);
 		bool is_delim_not_string(char c);
 		bool should_append_op(char c1, char c2, char c3);
-		bool tokenize_default(vector<string> input, int ln, int& prev, int i);
-		void tokenize_string(vector<string> input, int ln, int& prev, int i, 
-                            bool& in_str, int& string_line_start, int& string_column_start,
+		bool tokenize_default(int ln, int& prev, int i);
+		void tokenize_string(int ln, int& prev, int i, bool& in_str, 
+							int& string_line_start, int& string_column_start,
 							string& str_value, string& termination_char);
-		void tokenize_comment(vector<string> input, int ln, int& prev, int i, vector<int> indents);
-		void end_of_line(vector<string> input, int ln, int& prev, int i, 
-                            bool& in_str, int& string_line_start, string& str_value);
-		void eof(vector<int> indents, int ln);
+		void tokenize_comment(int ln, int& prev, int i, vector<int> indents);
+		void end_of_line(int ln, int& prev, int i, bool& in_str, 
+						 int& string_line_start, string& str_value);
+		void eof(int ln, int prev, vector<int> indents);
 
 		// main function
 		void tokenize();

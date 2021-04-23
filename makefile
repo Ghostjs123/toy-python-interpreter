@@ -11,7 +11,12 @@ tokenizer_debug = tokenizer_debug.o token.o logging.o $(libs) -lncurses
 parser = parser.o $(tokenizer) $(ast) $(pyobject) $(stack) builtins.o
 interpreter = interpreter.o $(parser)
 
-# default
+# I use both of these for debugging
+default:
+	make mypy
+	make tokenizer-main
+
+# main target
 mypy: $(interpreter)
 	g++ $(interpreter) $(default_args) $(includes) -o mypy
 

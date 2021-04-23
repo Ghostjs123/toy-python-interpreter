@@ -125,13 +125,13 @@ bool Tokenizer::should_append_op(char c1, char c2, char c3) {
     return false;
 }
 
-bool Tokenizer::tokenize_default(vector<string> input, int ln, int& prev, int i) {
+bool Tokenizer::tokenize_default(int ln, int& prev, int i) {
     string temp_s;
     int temp_i;
     char c1, c2, c3;
 
+    // check for 2+ character ops, push if found
     if (special_delimiters.find(input[ln][prev]) != string::npos) {
-        // potentially 2+ char op found
         c1 = input[ln][prev];
         c2 = prev < input[ln].length() ? input[ln][prev+1] : 'o';
         c3 = prev+1 < input[ln].length() ? input[ln][prev+2] : 'o';
@@ -156,6 +156,7 @@ bool Tokenizer::tokenize_default(vector<string> input, int ln, int& prev, int i)
     temp_s = sub(input[ln], prev, i);
     if (ltrim(temp_s) == "") return true;  // sometimes whitespace slips through here
     
+    // push the token
     if (DEBUG_TOK) cout << "pushed in default 3: '" << temp_s << "'" << endl;
     if (prev == i) {
         tokens.push_back(
@@ -167,8 +168,8 @@ bool Tokenizer::tokenize_default(vector<string> input, int ln, int& prev, int i)
         prev = i;
     }
     
+    // NOTE: could be 1 or more spaces, want to skip all of them
     if (input[ln][prev] == ' ') {
-        // NOTE: could be 1 or more spaces, want to skip all of them
         temp_i = prev+1;
         while (temp_i < input[ln].size() && input[ln][temp_i] == ' ') {
             temp_i++;
@@ -178,20 +179,12 @@ bool Tokenizer::tokenize_default(vector<string> input, int ln, int& prev, int i)
         }
         prev = temp_i;
     }
-    // else {
-    //     if (prev == i) {
-    //         prev = i + 1;
-    //     }
-    //     else {
-    //         prev = i;
-    //     }
-    // }
     return false;
 }
 
-void Tokenizer::tokenize_string(vector<string> input, int ln, int& prev, int i, 
-                            bool& in_str, int& string_line_start, int& string_column_start,
-                            string& str_value, string& termination_char) {
+void Tokenizer::tokenize_string(int ln, int& prev, int i, bool& in_str, 
+                                int& string_line_start, int& string_column_start,
+                                string& str_value, string& termination_char) {
     if (in_str) {
         // make sure the delimiter terminates the string
         if (input[ln][i] == '"') {
@@ -251,8 +244,8 @@ void Tokenizer::tokenize_string(vector<string> input, int ln, int& prev, int i,
     }
 }
 
-void Tokenizer::end_of_line(vector<string> input, int ln, int& prev, int i, 
-                            bool& in_str, int& string_line_start, string& str_value) {
+void Tokenizer::end_of_line(int ln, int& prev, int i, bool& in_str, 
+                            int& string_line_start, string& str_value) {
     string temp_s;
 
     // NOTE: last line of file might not have a carriage return
@@ -293,52 +286,75 @@ void Tokenizer::end_of_line(vector<string> input, int ln, int& prev, int i,
                 Token(get_type(temp_s), temp_s, {ln+1, prev}, {ln+1, i=1}));
             prev = i;
         }
+        
         // push the NEWLINE
+        temp_s = "NEWLINE";
+        if (tokens.back().type == "COMMENT") temp_s = "NL";
         if (input[ln][i] == '\r') {
-            if (DEBUG_TOK) cout << "pushed in eol: '" << "NEWLINE" << "'" << endl;
+            if (DEBUG_TOK) cout << "pushed in eol: '" << temp_s << "'" << endl;
             tokens.push_back(
-                Token("NEWLINE", "\\r\\n", {ln+1, i}, {ln+1, i+2}));
+                Token(temp_s, "\\r\\n", {ln+1, i}, {ln+1, i+2}));
         }
         else {
-            if (DEBUG_TOK) cout << "pushed in eol: '" << "NEWLINE" << "'" << endl;
+            if (DEBUG_TOK) cout << "pushed in eol: '" << temp_s << "'" << endl;
             tokens.push_back(
-                Token("NEWLINE", "", {ln+1, prev}, {ln+1, prev+1}));
+                Token(temp_s, "", {ln+1, prev}, {ln+1, prev+1}));
         }
     }
     // NOTE: dont want to push a NEWLINE if the string will continue on
 }
 
-void Tokenizer::tokenize_comment(vector<string> input, int ln, int& prev, int i, vector<int> indents) {
+void Tokenizer::tokenize_comment(int ln, int& prev, int i, vector<int> indents) {
     string temp_s;
     int temp_i;
 
+    // push remaining token if there is one
     if (prev != i) {
-        // push remaining token if there is one
         temp_s = sub(input[ln], prev, i);
         if (DEBUG_TOK) cout << "pushed in comment: '" << temp_s << "'" << endl;
         tokens.push_back(
             Token(get_type(temp_s), temp_s, {ln+1, prev}, {ln+1, i}));
         prev = i;
     }
+    
+    // push the COMMENT
     temp_i = input[ln].find_last_not_of("\r")+1;
     if (DEBUG_TOK) cout << "pushed in comment: '" << sub(input[ln], i, temp_i) << "'" << endl;
     tokens.push_back(
         Token("COMMENT", sub(input[ln], i, temp_i), {ln+1, i}, {ln+1, temp_i}));
     prev = temp_i;
+
+    // weird stuff happens if the comment is the last line of the file with no '\r'
+    // mimic'ing that behavior here
     if (input[ln].find('\r') == string::npos) {
-        // weird stuff happens if the comment is the last line of the file with no '\r'
         if (DEBUG_TOK) cout << "pushed in comment: '" << "NL" << "'" << endl;
         tokens.push_back(
             Token("NL", "", {ln+1, input[ln].size()}, {ln+1, input[ln].size()}));
         if (DEBUG_TOK) cout << "pushed in comment: '" << "NEWLINE" << "'" << endl;
         tokens.push_back(
             Token("NEWLINE", "", {ln+1, input[ln].size()}, {ln+1, input[ln].size()+1}));
-        eof(indents, ln+1);
-        return;
+        eof(ln+1, prev, indents);
     }
 }
 
-void Tokenizer::eof(vector<int> indents, int ln) {
+void Tokenizer::eof(int ln, int prev, vector<int> indents) {
+    // check if there is one more token that needs pushed
+    if (prev < input[ln-1].size()-1) {
+        if (DEBUG_TOK) cout << "pushed in eof: '" << sub(input[ln-1], prev, input[ln-1].size()-1) << "'" << endl;
+        string temp_s = sub(input[ln-1], prev, input[ln-1].size()-1);
+        tokens.push_back(
+            Token(get_type(temp_s), temp_s, {ln, prev}, {ln, input[ln].size()}));
+    }
+
+    // if the file doesnt have a '\r' 13 on the last line then a NEWLINE 
+    // wont get pushed, it is still needed
+    if (tokens.back().type != "NEWLINE" && tokens.back().type != "NL") {
+        if (DEBUG_TOK) cout << "pushed in eof: '" << "NEWLINE" << "'" << endl;
+        tokens.push_back(
+            Token("NEWLINE", "", {ln, input[ln-1].size()-1}, {ln, input[ln-1].size()}));
+    }
+
+    // push remaining DEDENTs
     while(indents.size() > 1) {
         if (DEBUG_TOK) cout << "pushed in eof: '" << "DEDENT" << "'" << endl;
         tokens.push_back(
@@ -346,6 +362,7 @@ void Tokenizer::eof(vector<int> indents, int ln) {
         indents.pop_back();
     }
     
+    // push ENDMARKER
     if (DEBUG_TOK) cout << "pushed in eof: '" << "ENDMARKER" << "'" << endl;
     tokens.push_back(
         Token("ENDMARKER", "", {ln+1, 0}, {ln+1, 0}));
@@ -371,7 +388,7 @@ void Tokenizer::tokenize() {
         }
         if (+input[ln][code_start] == 0) {
             // EOF
-            eof(indents, ln);
+            eof(ln, prev, indents);
             return;
         }
 
@@ -386,8 +403,7 @@ void Tokenizer::tokenize() {
             string msg = "line " + to_string(ln+1) + "\nunindent does not match any outer indentation level";
             throw runtime_error(msg);
         }
-        // while (indents.size() > 1 && code_start < indents.back()) {
-        while (code_start < indents.back()) {
+        while (code_start < indents.back() && input[ln][code_start] != '#') {
             // lower indentation level
             indents.pop_back();
             tokens.push_back(
@@ -408,12 +424,12 @@ void Tokenizer::tokenize() {
                 if (DEBUG_TOK) cout << "delim: '" << +input[ln][i] << "'" << endl;
                 if (input[ln][i] == '#') {
                     // comment found
-                    tokenize_comment(input, ln, prev, i, indents);
+                    tokenize_comment(ln, prev, i, indents);
                 }
                 else if (input[ln][i] == '"' || input[ln][i] == '\'') {
                     // string delimiter found (start or termination)
-                    tokenize_string(input, ln, prev, i, 
-                            in_str, string_line_start, string_column_start,
+                    tokenize_string(ln, prev, i, in_str, 
+                            string_line_start, string_column_start,
                             str_value, termination_char);
                 }
                 else if (input[ln][i] == '.' && isdigit(input[ln][i+1])) {
@@ -422,7 +438,7 @@ void Tokenizer::tokenize() {
                 }
                 else if (input[ln][i] == '\r' || i == input[ln].size()-1) {
                     // reached end of line
-                    end_of_line(input, ln, prev, i, in_str, string_line_start, str_value);
+                    end_of_line(ln, prev, i, in_str, string_line_start, str_value);
                 }
                 else if (in_str) {
                     // found a delimiter inside the string, skip it
@@ -430,16 +446,16 @@ void Tokenizer::tokenize() {
                 }
                 else {
                     // normal delimiter
-                    tokenize_default(input, ln, prev, i);
+                    tokenize_default(ln, prev, i);
                     while (is_delim_not_string(input[ln][prev])) {
-                        if (tokenize_default(input, ln, prev, prev+1)) break;
+                        if (tokenize_default(ln, prev, prev+1)) break;
                     }
                 }
             }
         }
     }
     // NOTE: this can be reached if the file does not have the EOF char checked for above
-    eof(indents, input.size());
+    eof(input.size(), prev, indents);
 }
 
 // public members
@@ -489,13 +505,17 @@ void Tokenizer::print() {
 void Tokenizer::find_next() {
     // NL's are strictly empty lines, skipping them here
     // also skipping comments here
+    Logger* lg = Logger::get_instance();
     while(tokens[pos].type == "NL" || tokens[pos].type == "COMMENT") {
         if (tokens[pos].type == "NL") {
+            lg->log("- " + tokens[pos].as_string(), DEBUG);
             pos++;
         }
         else if (tokens[pos].type == "COMMENT") {
+            lg->log("- " + tokens[pos].as_string(), DEBUG);
             pos++;
             if (tokens[pos].type == "NEWLINE") {  // should always be true
+                lg->log("- " + tokens[pos].as_string(), DEBUG);
                 pos++;
             }
         }
