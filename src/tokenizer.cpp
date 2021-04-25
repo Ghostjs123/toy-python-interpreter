@@ -339,7 +339,8 @@ void Tokenizer::tokenize_comment(int ln, int& prev, int i, vector<int> indents) 
 
 void Tokenizer::eof(int ln, int prev, vector<int> indents) {
     // check if there is one more token that needs pushed
-    if (prev < input[ln-1].size()-1) {
+    // if (prev < input[ln-1].size()-1) {
+    if (prev < input[ln-1].size()-1 && tokens.back().type != "NEWLINE" && tokens.back().type != "NL") {
         if (DEBUG_TOK) cout << "pushed in eof: '" << sub(input[ln-1], prev, input[ln-1].size()-1) << "'" << endl;
         string temp_s = sub(input[ln-1], prev, input[ln-1].size()-1);
         tokens.push_back(

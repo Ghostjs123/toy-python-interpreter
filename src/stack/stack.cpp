@@ -48,6 +48,7 @@ void Frame::assign(string name, PyObject value) {
 
 void Frame::set_return_value(PyObject value) {
     this->return_value = value;
+    this->returning = true;
     Logger::get_instance()->log("Set return value to: " + (string)value, DEBUG);
 }
 

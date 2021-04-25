@@ -31,8 +31,9 @@ void sub_indent(int amt) {
 // AST: parent class of all nodes
 
 AST::AST() { }
-AST::AST(Tokenizer *tokenizer) {
+AST::AST(Tokenizer *tokenizer, string indent) {
     this->tokenizer = tokenizer;
+    this->indent = indent;
 }
 Token AST::peek(string func_name) {
     try {
@@ -90,16 +91,17 @@ ostream& AST::print(ostream& os) const {
 // File: starting non-terminal for file mode
 
 // file: [statements] ENDMARKER 
-File::File(Tokenizer *tokenizer) {
+File::File(Tokenizer *tokenizer, string indent) {
     log(__FUNCTION__, DEBUG); add_indent(2);
     this->tokenizer = tokenizer;
+    this->indent = indent;
     parse();
     sub_indent(2);
     log(__FUNCTION__ + (string)" - children.size() == " + to_string(children.size()), DEBUG);
 }
 void File::parse() {
     while (peek("File").type != "ENDMARKER") {
-        children.push_back(new Statements(tokenizer));
+        children.push_back(new Statements(tokenizer, indent));
     }
     eat_type("ENDMARKER", "File");
 }
@@ -122,15 +124,16 @@ ostream& File::print(ostream& os) const {
 // Interactive: starting non-terminal for interactive mode
 
 // interactive: statement_newline
-Interactive::Interactive(Tokenizer *tokenizer) {
+Interactive::Interactive(Tokenizer *tokenizer, string indent) {
     log(__FUNCTION__, DEBUG); add_indent(2);
     this->tokenizer = tokenizer;
+    this->indent = indent;
     parse();
     sub_indent(2);
     log(__FUNCTION__ + (string)" - children.size() == " + to_string(children.size()), DEBUG);
 }
 void Interactive::parse() {
-    children.push_back(new StatementNewline(tokenizer));
+    children.push_back(new StatementNewline(tokenizer, indent));
 }
 PyObject Interactive::evaluate(Stack stack) {
     log("Interactive::evaluate()", DEBUG); add_indent(2);
@@ -147,15 +150,16 @@ ostream& Interactive::print(ostream& os) const {
 // Statements
 
 // statements: statement+ 
-Statements::Statements(Tokenizer *tokenizer) {
+Statements::Statements(Tokenizer *tokenizer, string indent) {
     log(__FUNCTION__, DEBUG); add_indent(2);
     this->tokenizer = tokenizer;
+    this->indent = indent;
     parse();
     sub_indent(2);
     log(__FUNCTION__ + (string)" - children.size() == " + to_string(children.size()), DEBUG);
 }
 void Statements::parse() {
-    Statement* temp = new Statement(tokenizer);
+    Statement* temp = new Statement(tokenizer, indent);
     if (temp->children.size() == 0) {
         delete temp;
     } else {
@@ -182,18 +186,19 @@ ostream& Statements::print(ostream& os) const {
 // NOTE: this attempts to parse a CompoundStmt, falls back to SimpleStmt
 
 // statement: compound_stmt  | simple_stmt
-Statement::Statement(Tokenizer *tokenizer) {
+Statement::Statement(Tokenizer *tokenizer, string indent) {
     log(__FUNCTION__, DEBUG); add_indent(2);
     this->tokenizer = tokenizer;
+    this->indent = indent;
     parse();
     sub_indent(2);
     log(__FUNCTION__ + (string)" - children.size() == " + to_string(children.size()), DEBUG);
 }
 void Statement::parse() {
-    CompoundStmt *temp = new CompoundStmt(tokenizer);
+    CompoundStmt *temp = new CompoundStmt(tokenizer, indent);
     if (temp->children.size() == 0) {
         delete temp;
-        children.push_back(new SimpleStmt(tokenizer));
+        children.push_back(new SimpleStmt(tokenizer, indent));
     } else {
         children.push_back(temp);
     }
@@ -221,9 +226,10 @@ ostream& Statement::print(ostream& os) const {
 //     | simple_stmt
 //     | NEWLINE 
 //     | ENDMARKER
-StatementNewline::StatementNewline(Tokenizer *tokenizer) {
+StatementNewline::StatementNewline(Tokenizer *tokenizer, string indent) {
     log(__FUNCTION__, DEBUG); add_indent(2);
     this->tokenizer = tokenizer;
+    this->indent = indent;
     parse();
     sub_indent(2);
     log(__FUNCTION__ + (string)" - children.size() == " + to_string(children.size()), DEBUG);
@@ -236,10 +242,10 @@ void StatementNewline::parse() {
     } else if (peek("StatementNewline").type == "ENDMARKER") {
         eat_type("ENDMARKER", "StatementNewline");
     } else {
-        CompoundStmt *temp = new CompoundStmt(tokenizer);
+        CompoundStmt *temp = new CompoundStmt(tokenizer, indent);
         if (temp->children.size() == 0) {
             delete temp;
-            children.push_back(new SimpleStmt(tokenizer));
+            children.push_back(new SimpleStmt(tokenizer, indent));
         } else {
             children.push_back(temp);
             eat_type("NEWLINE", "StatementNewline");
@@ -266,16 +272,17 @@ ostream& StatementNewline::print(ostream& os) const {
 // simple_stmt:
 //     | small_stmt !';' NEWLINE  # Not needed, there for speedup
 //     | ';'.small_stmt+ [';'] NEWLINE
-SimpleStmt::SimpleStmt(Tokenizer *tokenizer) {
+SimpleStmt::SimpleStmt(Tokenizer *tokenizer, string indent) {
     log(__FUNCTION__, DEBUG); add_indent(2);
     this->tokenizer = tokenizer;
+    this->indent = indent;
     parse();
     sub_indent(2);
     log(__FUNCTION__ + (string)" - children.size() == " + to_string(children.size()), DEBUG);
 }
 void SimpleStmt::parse() {
     // TODO: grammar needs to support ;
-    children.push_back(new SmallStmt(tokenizer));
+    children.push_back(new SmallStmt(tokenizer, indent));
     eat_type("NEWLINE", "SimpleStmt");
 }
 PyObject SimpleStmt::evaluate(Stack stack) {
@@ -309,16 +316,17 @@ ostream& SimpleStmt::print(ostream& os) const {
 //     | 'continue' 
 //     | global_stmt
 //     | nonlocal_stmt
-SmallStmt::SmallStmt(Tokenizer *tokenizer) {
+SmallStmt::SmallStmt(Tokenizer *tokenizer, string indent) {
     log(__FUNCTION__, DEBUG); add_indent(2);
     this->tokenizer = tokenizer;
+    this->indent = indent;
     parse();
     sub_indent(2);
     log(__FUNCTION__ + (string)" - children.size() == " + to_string(children.size()), DEBUG);
 }
 void SmallStmt::parse() {
     if (peek("SmallStmt").value == "return") {
-        children.push_back(new ReturnStmt(tokenizer));
+        children.push_back(new ReturnStmt(tokenizer, indent));
     }
     else if (peek("SmallStmt").value == "import") {
         throw runtime_error("SmallStmt: 'import' not implemented");
@@ -353,7 +361,7 @@ void SmallStmt::parse() {
     else {
         // assignment
         // star_expressions
-        children.push_back(new StarExpressions(tokenizer));
+        children.push_back(new StarExpressions(tokenizer, indent));
     }
 }
 PyObject SmallStmt::evaluate(Stack stack) {
@@ -378,25 +386,26 @@ ostream& SmallStmt::print(ostream& os) const {
 //     | for_stmt
 //     | try_stmt
 //     | while_stmt
-CompoundStmt::CompoundStmt(Tokenizer *tokenizer) {
+CompoundStmt::CompoundStmt(Tokenizer *tokenizer, string indent) {
     log(__FUNCTION__, DEBUG); add_indent(2);
     this->tokenizer = tokenizer;
+    this->indent = indent;
     parse();
     sub_indent(2);
     log(__FUNCTION__ + (string)" - children.size() == " + to_string(children.size()), DEBUG);
 }
 void CompoundStmt::parse() {
     if (peek("CompoundStmt").value == "if") {
-        children.push_back(new IfStmt(tokenizer));
+        children.push_back(new IfStmt(tokenizer, indent));
     }
     else if (peek("CompoundStmt").value == "for") {
-        children.push_back(new ForStmt(tokenizer));
+        children.push_back(new ForStmt(tokenizer, indent));
     }
     else if (peek("CompoundStmt").value == "while") {
-        children.push_back(new WhileStmt(tokenizer));
+        children.push_back(new WhileStmt(tokenizer, indent));
     }
     else if (peek("CompoundStmt").value == "def") {
-        children.push_back(new FunctionDef(tokenizer));
+        children.push_back(new FunctionDef(tokenizer, indent));
     }
     // TODO: class_def, with_stmt, try_stmt
 }
@@ -434,9 +443,10 @@ ostream& CompoundStmt::print(ostream& os) const {
 //     | '>>=' 
 //     | '**=' 
 //     | '//=' 
-Assignment::Assignment(Tokenizer *tokenizer) {
+Assignment::Assignment(Tokenizer *tokenizer, string indent) {
     log(__FUNCTION__, DEBUG); add_indent(2);
     this->tokenizer = tokenizer;
+    this->indent = indent;
     parse();
     sub_indent(2);
     log(__FUNCTION__ + (string)" - children.size() == " + to_string(children.size()), DEBUG);
@@ -463,25 +473,26 @@ ostream& Assignment::print(ostream& os) const {
 // if_stmt:
 //     | 'if' named_expression ':' block elif_stmt 
 //     | 'if' named_expression ':' block [else_block] 
-IfStmt::IfStmt(Tokenizer *tokenizer) {
+IfStmt::IfStmt(Tokenizer *tokenizer, string indent) {
     log(__FUNCTION__, DEBUG); add_indent(2);
     this->tokenizer = tokenizer;
+    this->indent = indent;
     parse();
     sub_indent(2);
     log(__FUNCTION__ + (string)" - children.size() == " + to_string(children.size()), DEBUG);
 }
 void IfStmt::parse() {
     eat_value("if", "IfStmt");
-    children.push_back(new NamedExpression(tokenizer));
+    children.push_back(new NamedExpression(tokenizer, indent));
     eat_value(":", "IfStmt");
-    children.push_back(new Block(tokenizer));
+    children.push_back(new Block(tokenizer, indent));
     // NOTE: if its an if-elif-else, 
     //  the else block should end up in the ElifStmt production
     if (peek("IfStmt").value == "elif") {
-        children.push_back(new ElifStmt(tokenizer));
+        children.push_back(new ElifStmt(tokenizer, indent));
     }
     else if (peek("IfStmt").value == "else") {
-        children.push_back(new ElseBlock(tokenizer));
+        children.push_back(new ElseBlock(tokenizer, indent));
     }
 }
 PyObject IfStmt::evaluate(Stack stack) {
@@ -517,9 +528,10 @@ ostream& IfStmt::print(ostream& os) const {
 // elif_stmt:
 //     | 'elif' named_expression ':' block elif_stmt 
 //     | 'elif' named_expression ':' block [else_block] 
-ElifStmt::ElifStmt(Tokenizer *tokenizer) {
+ElifStmt::ElifStmt(Tokenizer *tokenizer, string indent) {
     log(__FUNCTION__, DEBUG); add_indent(2);
     this->tokenizer = tokenizer;
+    this->indent = indent;
     _else = nullptr;
     parse();
     sub_indent(2);
@@ -530,14 +542,14 @@ void ElifStmt::parse() {
     Block *t2;
     while (peek("ElifStmt").value == "elif") {
         eat_value("elif", "ElifStmt");
-        t1 = new NamedExpression(tokenizer);
+        t1 = new NamedExpression(tokenizer, indent);
         eat_value(":", "ElifStmt");
-        t2 = new Block(tokenizer);
+        t2 = new Block(tokenizer, indent);
         _elifs[t1] = t2;
     }
     if (peek("ElifStmt").value == "else") {
-        _else = new ElseBlock(tokenizer);
-    } 
+        _else = new ElseBlock(tokenizer, indent);
+    }
 }
 PyObject ElifStmt::evaluate(Stack stack) {
     log("ElifStmt::evaluate()", DEBUG); add_indent(2);
@@ -564,7 +576,7 @@ PyObject ElifStmt::evaluate(Stack stack) {
 ostream& ElifStmt::print(ostream& os) const {
     map<NamedExpression*, Block*>::const_iterator it;
     for (it = _elifs.begin(); it != _elifs.end(); it++) {
-        os << "elif " << *(it->first) << ":";
+        os << indent << "elif " << *(it->first) << ":";
         os << *(it->second);
     }
     if (_else != nullptr) {
@@ -577,9 +589,10 @@ ostream& ElifStmt::print(ostream& os) const {
 // ElseBlock
 
 // else_block: 'else' ':' block 
-ElseBlock::ElseBlock(Tokenizer *tokenizer) {
+ElseBlock::ElseBlock(Tokenizer *tokenizer, string indent) {
     log(__FUNCTION__, DEBUG); add_indent(2);
     this->tokenizer = tokenizer;
+    this->indent = indent;
     parse();
     sub_indent(2);
     log(__FUNCTION__ + (string)" - children.size() == " + to_string(children.size()), DEBUG);
@@ -587,7 +600,7 @@ ElseBlock::ElseBlock(Tokenizer *tokenizer) {
 void ElseBlock::parse() {
     eat_value("else", "ElseBlock");
     eat_value(":", "ElseBlock");
-    children.push_back(new Block(tokenizer));
+    children.push_back(new Block(tokenizer, indent));
 }
 PyObject ElseBlock::evaluate(Stack stack) {
     log("ElseBlock::evaluate()", DEBUG); add_indent(2);
@@ -596,7 +609,7 @@ PyObject ElseBlock::evaluate(Stack stack) {
     return ret;
 }
 ostream& ElseBlock::print(ostream& os) const {
-    os << "else:" << *children.at(0);
+    os << indent << "else:" << *children.at(0);
     return os;
 }
 
@@ -605,9 +618,10 @@ ostream& ElseBlock::print(ostream& os) const {
 
 // while_stmt:
 //     | 'while' named_expression ':' block [else_block] 
-WhileStmt::WhileStmt(Tokenizer *tokenizer) {
+WhileStmt::WhileStmt(Tokenizer *tokenizer, string indent) {
     log(__FUNCTION__, DEBUG); add_indent(2);
     this->tokenizer = tokenizer;
+    this->indent = indent;
     parse();
     sub_indent(2);
     log(__FUNCTION__ + (string)" - children.size() == " + to_string(children.size()), DEBUG);
@@ -642,11 +656,12 @@ ostream& WhileStmt::print(ostream& os) const {
 // for_stmt:
 //     | 'for' star_targets 'in' ~ star_expressions ':' [TYPE_COMMENT] block [else_block] 
 //     | ASYNC 'for' star_targets 'in' ~ star_expressions ':' [TYPE_COMMENT] block [else_block]
-ForStmt::ForStmt(Tokenizer *tokenizer) {
+ForStmt::ForStmt(Tokenizer *tokenizer, string indent) {
     // Loop better: a deeper look at iteration in Python
     // https://www.youtube.com/watch?v=V2PkkMS2Ack
     log(__FUNCTION__, DEBUG); add_indent(2);
     this->tokenizer = tokenizer;
+    this->indent = indent;
     parse();
     sub_indent(2);
     log(__FUNCTION__ + (string)" - children.size() == " + to_string(children.size()), DEBUG);
@@ -674,9 +689,10 @@ ostream& ForStmt::print(ostream& os) const {
 //     | 'with' ','.with_item+ ':' [TYPE_COMMENT] block 
 //     | ASYNC 'with' '(' ','.with_item+ ','? ')' ':' block 
 //     | ASYNC 'with' ','.with_item+ ':' [TYPE_COMMENT] block 
-WithStmt::WithStmt(Tokenizer *tokenizer) {
+WithStmt::WithStmt(Tokenizer *tokenizer, string indent) {
     log(__FUNCTION__, DEBUG); add_indent(2);
     this->tokenizer = tokenizer;
+    this->indent = indent;
     parse();
     sub_indent(2);
     log(__FUNCTION__ + (string)" - children.size() == " + to_string(children.size()), DEBUG);
@@ -702,9 +718,10 @@ ostream& WithStmt::print(ostream& os) const {
 // with_item:
 //     | expression 'as' star_target &(',' | ')' | ':') 
 //     | expression
-WithItem::WithItem(Tokenizer *tokenizer) {
+WithItem::WithItem(Tokenizer *tokenizer, string indent) {
     log(__FUNCTION__, DEBUG); add_indent(2);
     this->tokenizer = tokenizer;
+    this->indent = indent;
     parse();
     sub_indent(2);
     log(__FUNCTION__ + (string)" - children.size() == " + to_string(children.size()), DEBUG);
@@ -727,9 +744,10 @@ ostream& WithItem::print(ostream& os) const {
 //===============================================================
 // TryStmt
 
-TryStmt::TryStmt(Tokenizer *tokenizer) {
+TryStmt::TryStmt(Tokenizer *tokenizer, string indent) {
     log(__FUNCTION__, DEBUG); add_indent(2);
     this->tokenizer = tokenizer;
+    this->indent = indent;
     parse();
     sub_indent(2);
     log(__FUNCTION__ + (string)" - children.size() == " + to_string(children.size()), DEBUG);
@@ -755,9 +773,10 @@ ostream& TryStmt::print(ostream& os) const {
 // except_block:
 //     | 'except' expression ['as' NAME ] ':' block 
 //     | 'except' ':' block 
-ExceptBlock::ExceptBlock(Tokenizer *tokenizer) {
+ExceptBlock::ExceptBlock(Tokenizer *tokenizer, string indent) {
     log(__FUNCTION__, DEBUG); add_indent(2);
     this->tokenizer = tokenizer;
+    this->indent = indent;
     parse();
     sub_indent(2);
     log(__FUNCTION__ + (string)" - children.size() == " + to_string(children.size()), DEBUG);
@@ -781,9 +800,10 @@ ostream& ExceptBlock::print(ostream& os) const {
 // FinallyBlock
 
 // finally_block: 'finally' ':' block 
-FinallyBlock::FinallyBlock(Tokenizer *tokenizer) {
+FinallyBlock::FinallyBlock(Tokenizer *tokenizer, string indent) {
     log(__FUNCTION__, DEBUG); add_indent(2);
     this->tokenizer = tokenizer;
+    this->indent = indent;
     parse();
     sub_indent(2);
     log(__FUNCTION__ + (string)" - children.size() == " + to_string(children.size()), DEBUG);
@@ -808,16 +828,17 @@ ostream& FinallyBlock::print(ostream& os) const {
 
 // return_stmt:
 //     | 'return' [star_expressions]
-ReturnStmt::ReturnStmt(Tokenizer *tokenizer) {
+ReturnStmt::ReturnStmt(Tokenizer *tokenizer, string indent) {
     log(__FUNCTION__, DEBUG); add_indent(2);
     this->tokenizer = tokenizer;
+    this->indent = indent;
     parse();
     sub_indent(2);
     log(__FUNCTION__ + (string)" - children.size() == " + to_string(children.size()), DEBUG);
 }
 void ReturnStmt::parse() {
     eat_value("return", "ReturnStmt");
-    children.push_back(new StarExpressions(tokenizer));
+    children.push_back(new StarExpressions(tokenizer, indent));
 }
 PyObject ReturnStmt::evaluate(Stack stack) {
     log("ReturnStmt::evaluate()", DEBUG); add_indent(2);
@@ -838,15 +859,16 @@ ostream& ReturnStmt::print(ostream& os) const {
 // function_def:
 //     | decorators function_def_raw 
 //     | function_def_raw
-FunctionDef::FunctionDef(Tokenizer *tokenizer) {
+FunctionDef::FunctionDef(Tokenizer *tokenizer, string indent) {
     log(__FUNCTION__, DEBUG); add_indent(2);
     this->tokenizer = tokenizer;
+    this->indent = indent;
     parse();
     sub_indent(2);
     log(__FUNCTION__ + (string)" - children.size() == " + to_string(children.size()), DEBUG);
 }
 void FunctionDef::parse() {
-    this->raw = new FunctionDefRaw(tokenizer);
+    this->raw = new FunctionDefRaw(tokenizer, indent);
 }
 PyObject FunctionDef::evaluate(Stack stack) {
     log("FunctionDef::evaluate()", DEBUG); add_indent(2);
@@ -867,9 +889,10 @@ ostream& FunctionDef::print(ostream& os) const {
 // function_def_raw:
 //     | 'def' NAME '(' [params] ')' ['->' expression ] ':' [func_type_comment] block 
 //     | ASYNC 'def' NAME '(' [params] ')' ['->' expression ] ':' [func_type_comment] block 
-FunctionDefRaw::FunctionDefRaw(Tokenizer *tokenizer) {
+FunctionDefRaw::FunctionDefRaw(Tokenizer *tokenizer, string indent) {
     log(__FUNCTION__, DEBUG); add_indent(2);
     this->tokenizer = tokenizer;
+    this->indent = indent;
     parse();
     sub_indent(2);
     log(__FUNCTION__ + (string)" - children.size() == " + to_string(children.size()), DEBUG);
@@ -880,12 +903,12 @@ void FunctionDefRaw::parse() {
     eat_value("(", "FunctionDefRaw");
     vector<AST*> params;
     while (peek("FunctionDefRaw").value != ")") {
-        params.push_back(new _String(tokenizer));
+        params.push_back(new _String(tokenizer, indent));
     }
     this->params = params;
     eat_value(")", "FunctionDefRaw");
     eat_value(":", "FunctionDefRaw");
-    this->body = new Block(tokenizer);
+    this->body = new Block(tokenizer, indent);
 }
 PyObject FunctionDefRaw::evaluate(Stack stack) {
     log("FunctionDefRaw::evaluate()", DEBUG); add_indent(2); sub_indent(2);
@@ -914,9 +937,10 @@ ostream& FunctionDefRaw::print(ostream& os) const {
 // block:
 //     | NEWLINE INDENT statements DEDENT 
 //     | simple_stmt
-Block::Block(Tokenizer *tokenizer) {
+Block::Block(Tokenizer *tokenizer, string indent) {
     log(__FUNCTION__, DEBUG); add_indent(2);
     this->tokenizer = tokenizer;
+    this->indent = indent;
     parse();
     sub_indent(2);
     log(__FUNCTION__ + (string)" - children.size() == " + to_string(children.size()), DEBUG);
@@ -927,17 +951,19 @@ void Block::parse() {
     // if this happens it will also not have an INDENT or DEDENT
     // consequently it will only have 1 Statement
     if (peek("Block").type == "NEWLINE") {
+        this->has_newline = true;
         eat_type("NEWLINE", "Block");
         this->indent = peek("Block").value;
         eat_type("INDENT", "Block");
         while (peek("Block").type != "DEDENT") {
-            children.push_back(new Statement(tokenizer));
+            children.push_back(new Statement(tokenizer, indent));
         }
         eat_type("DEDENT", "Block");
     }
     else {
+        this->has_newline = false;
         this->indent = "";
-        children.push_back(new Statement(tokenizer));
+        children.push_back(new Statement(tokenizer, indent));
     }
 }
 PyObject Block::evaluate(Stack stack) {
@@ -953,8 +979,13 @@ PyObject Block::evaluate(Stack stack) {
     return PyObject();  // Blocks dont return anything
 }
 ostream& Block::print(ostream& os) const {
-    for (AST *child : children) {
-        os << endl << indent << *child;
+    if (has_newline) {
+        for (AST *child : children) {
+            os << endl << indent  << *child;
+        }
+    }
+    else {
+        os << *children.at(0);
     }
     return os;
 }
@@ -968,17 +999,18 @@ ostream& Block::print(ostream& os) const {
 //     | star_expression (',' star_expression )+ [','] 
 //     | star_expression ',' 
 //     | star_expression
-StarExpressions::StarExpressions(Tokenizer *tokenizer) {
+StarExpressions::StarExpressions(Tokenizer *tokenizer, string indent) {
     log(__FUNCTION__, DEBUG); add_indent(2);
     this->tokenizer = tokenizer;
+    this->indent = indent;
     parse();
     sub_indent(2);
     log(__FUNCTION__ + (string)" - children.size() == " + to_string(children.size()), DEBUG);
 }
 void StarExpressions::parse() {
-    children.push_back(new StarExpression(tokenizer));
+    children.push_back(new StarExpression(tokenizer, indent));
     while(peek("StarExpressions").value == ",") {
-        children.push_back(new StarExpression(tokenizer));
+        children.push_back(new StarExpression(tokenizer, indent));
     }
 }
 PyObject StarExpressions::evaluate(Stack stack) {
@@ -1008,20 +1040,21 @@ ostream& StarExpressions::print(ostream& os) const {
 // star_expression:
 //     | '*' bitwise_or 
 //     | expression
-StarExpression::StarExpression(Tokenizer *tokenizer) {
+StarExpression::StarExpression(Tokenizer *tokenizer, string indent) {
     log(__FUNCTION__, DEBUG); add_indent(2);
     this->tokenizer = tokenizer;
+    this->indent = indent;
     parse();
     sub_indent(2);
     log(__FUNCTION__ + (string)" - children.size() == " + to_string(children.size()), DEBUG);
 }
 void StarExpression::parse() {
     if (peek("StarExpression").value == "*") {
-        children.push_back(new _String(tokenizer));
-        children.push_back(new BitwiseOr(tokenizer));
+        children.push_back(new _String(tokenizer, indent));
+        children.push_back(new BitwiseOr(tokenizer, indent));
     }
     else {
-        children.push_back(new Expression(tokenizer));
+        children.push_back(new Expression(tokenizer, indent));
     }
 }
 PyObject StarExpression::evaluate(Stack stack) {
@@ -1042,18 +1075,19 @@ ostream& StarExpression::print(ostream& os) const {
 // StarNamedExpressions
 
 // star_named_expressions: ','.star_named_expression+ [','] 
-StarNamedExpressions::StarNamedExpressions(Tokenizer *tokenizer) {
+StarNamedExpressions::StarNamedExpressions(Tokenizer *tokenizer, string indent) {
     log(__FUNCTION__, DEBUG); add_indent(2);
     this->tokenizer = tokenizer;
+    this->indent = indent;
     parse();
     sub_indent(2);
     log(__FUNCTION__ + (string)" - children.size() == " + to_string(children.size()), DEBUG);
 }
 void StarNamedExpressions::parse() {
-    children.push_back(new StarNamedExpression(tokenizer));
+    children.push_back(new StarNamedExpression(tokenizer, indent));
     while (peek("StarNamedExpressions").value == ",") {
         eat_value(",", "StarNamedExpressions");
-        children.push_back(new StarNamedExpression(tokenizer));
+        children.push_back(new StarNamedExpression(tokenizer, indent));
     }
 }
 PyObject StarNamedExpressions::evaluate(Stack stack) {
@@ -1079,9 +1113,10 @@ ostream& StarNamedExpressions::print(ostream& os) const {
 // star_named_expression:
 //     | '*' bitwise_or 
 //     | named_expression
-StarNamedExpression::StarNamedExpression(Tokenizer *tokenizer) {
+StarNamedExpression::StarNamedExpression(Tokenizer *tokenizer, string indent) {
     log(__FUNCTION__, DEBUG); add_indent(2);
     this->tokenizer = tokenizer;
+    this->indent = indent;
     parse();
     sub_indent(2);
     log(__FUNCTION__ + (string)" - children.size() == " + to_string(children.size()), DEBUG);
@@ -1089,11 +1124,11 @@ StarNamedExpression::StarNamedExpression(Tokenizer *tokenizer) {
 void StarNamedExpression::parse() {
     log("StarNamedExpression::evaluate()", DEBUG); add_indent(2);
     if (peek("StarNamedExpression").value == "*") {
-        children.push_back(new _String(tokenizer));
-        children.push_back(new BitwiseOr(tokenizer));
+        children.push_back(new _String(tokenizer, indent));
+        children.push_back(new BitwiseOr(tokenizer, indent));
     }
     else {
-        children.push_back(new NamedExpression(tokenizer));
+        children.push_back(new NamedExpression(tokenizer, indent));
     }
 }
 PyObject StarNamedExpression::evaluate(Stack stack) {
@@ -1115,16 +1150,17 @@ ostream& StarNamedExpression::print(ostream& os) const {
 // named_expression:
 //     | NAME ':=' ~ expression 
 //     | expression !':='
-NamedExpression::NamedExpression(Tokenizer *tokenizer) {
+NamedExpression::NamedExpression(Tokenizer *tokenizer, string indent) {
     log(__FUNCTION__, DEBUG); add_indent(2);
     this->tokenizer = tokenizer;
+    this->indent = indent;
     parse();
     sub_indent(2);
     log(__FUNCTION__ + (string)" - children.size() == " + to_string(children.size()), DEBUG);
 }
 void NamedExpression::parse() {
     // TODO: handle ':=' case
-    children.push_back(new Expression(tokenizer));
+    children.push_back(new Expression(tokenizer, indent));
 }
 PyObject NamedExpression::evaluate(Stack stack) {
     log("NamedExpression::evaluate()", DEBUG); add_indent(2);
@@ -1151,17 +1187,18 @@ ostream& NamedExpression::print(ostream& os) const {
 //     | expression (',' expression )+ [','] 
 //     | expression ',' 
 //     | expression
-Expressions::Expressions(Tokenizer *tokenizer) {
+Expressions::Expressions(Tokenizer *tokenizer, string indent) {
     log(__FUNCTION__, DEBUG); add_indent(2);
     this->tokenizer = tokenizer;
+    this->indent = indent;
     parse();
     sub_indent(2);
     log(__FUNCTION__ + (string)" - children.size() == " + to_string(children.size()), DEBUG);
 }
 void Expressions::parse() {
-    children.push_back(new Expression(tokenizer));
+    children.push_back(new Expression(tokenizer, indent));
     while(peek("Expressions").value == ",") {
-        children.push_back(new Expression(tokenizer));
+        children.push_back(new Expression(tokenizer, indent));
     }
 }
 PyObject Expressions::evaluate(Stack stack) {
@@ -1192,9 +1229,10 @@ ostream& Expressions::print(ostream& os) const {
 //     | disjunction 'if' disjunction 'else' expression 
 //     | disjunction
 //     | lambdef
-Expression::Expression(Tokenizer *tokenizer) {
+Expression::Expression(Tokenizer *tokenizer, string indent) {
     log(__FUNCTION__, DEBUG); add_indent(2);
     this->tokenizer = tokenizer;
+    this->indent = indent;
     parse();
     sub_indent(2);
     log(__FUNCTION__ + (string)" - children.size() == " + to_string(children.size()), DEBUG);
@@ -1204,7 +1242,7 @@ void Expression::parse() {
     if (lookahead(1).value == "if") {
 
     }
-    children.push_back(new Disjunction(tokenizer));
+    children.push_back(new Disjunction(tokenizer, indent));
 }
 PyObject Expression::evaluate(Stack stack) {
     log("Expression::evaluate()", DEBUG); add_indent(2);
@@ -1229,18 +1267,19 @@ ostream& Expression::print(ostream& os) const {
 // disjunction:
 //     | conjunction ('or' conjunction )+ 
 //     | conjunction
-Disjunction::Disjunction(Tokenizer *tokenizer) {
+Disjunction::Disjunction(Tokenizer *tokenizer, string indent) {
     log(__FUNCTION__, DEBUG); add_indent(2);
     this->tokenizer = tokenizer;
+    this->indent = indent;
     parse();
     sub_indent(2);
     log(__FUNCTION__ + (string)" - children.size() == " + to_string(children.size()), DEBUG);
 }
 void Disjunction::parse() {
-    children.push_back(new Conjunction(tokenizer));
+    children.push_back(new Conjunction(tokenizer, indent));
     while(peek("Disjunction").value == "or") {
         eat_value("or", "Disjunction");
-        children.push_back(new Conjunction(tokenizer));
+        children.push_back(new Conjunction(tokenizer, indent));
     }
 }
 PyObject Disjunction::evaluate(Stack stack) {
@@ -1272,18 +1311,19 @@ ostream& Disjunction::print(ostream& os) const {
 // conjunction:
 //     | inversion ('and' inversion )+ 
 //     | inversion
-Conjunction::Conjunction(Tokenizer *tokenizer) {
+Conjunction::Conjunction(Tokenizer *tokenizer, string indent) {
     log(__FUNCTION__, DEBUG); add_indent(2);
     this->tokenizer = tokenizer;
+    this->indent = indent;
     parse();
     sub_indent(2);
     log(__FUNCTION__ + (string)" - children.size() == " + to_string(children.size()), DEBUG);
 }
 void Conjunction::parse() {
-    children.push_back(new Inversion(tokenizer));
+    children.push_back(new Inversion(tokenizer, indent));
     while(peek("Conjunction").value == "and") {
         eat_value("and", "Conjunction");
-        children.push_back(new Inversion(tokenizer));
+        children.push_back(new Inversion(tokenizer, indent));
     }
 }
 PyObject Conjunction::evaluate(Stack stack) {
@@ -1315,18 +1355,19 @@ ostream& Conjunction::print(ostream& os) const {
 // inversion:
 //     | 'not' inversion 
 //     | comparison
-Inversion::Inversion(Tokenizer *tokenizer) {
+Inversion::Inversion(Tokenizer *tokenizer, string indent) {
     log(__FUNCTION__, DEBUG); add_indent(2);
     this->tokenizer = tokenizer;
+    this->indent = indent;
     parse();
     sub_indent(2);
     log(__FUNCTION__ + (string)" - children.size() == " + to_string(children.size()), DEBUG);
 }
 void Inversion::parse() {
     if (peek("Inversion").value == "not") {
-        children.push_back(new _String(tokenizer));
+        children.push_back(new _String(tokenizer, indent));
     }
-    children.push_back(new Comparison(tokenizer));
+    children.push_back(new Comparison(tokenizer, indent));
 }
 PyObject Inversion::evaluate(Stack stack) {
     log("Inversion::evaluate()", DEBUG); add_indent(2);
@@ -1363,18 +1404,19 @@ ostream& Inversion::print(ostream& os) const {
 //     | in_bitwise_or
 //     | isnot_bitwise_or
 //     | is_bitwise_or
-Comparison::Comparison(Tokenizer *tokenizer) {
+Comparison::Comparison(Tokenizer *tokenizer, string indent) {
     log(__FUNCTION__, DEBUG); add_indent(2);
     this->tokenizer = tokenizer;
+    this->indent = indent;
     parse();
     sub_indent(2);
     log(__FUNCTION__ + (string)" - children.size() == " + to_string(children.size()), DEBUG);
 }
 void Comparison::parse() {
-    children.push_back(new BitwiseOr(tokenizer));
+    children.push_back(new BitwiseOr(tokenizer, indent));
     while (is_comparison_op(tokenizer)) {
-        children.push_back(new Op(tokenizer));
-        children.push_back(new BitwiseOr(tokenizer));
+        children.push_back(new Op(tokenizer, indent));
+        children.push_back(new BitwiseOr(tokenizer, indent));
     }
 }
 PyObject Comparison::evaluate(Stack stack) {
@@ -1410,18 +1452,19 @@ ostream& Comparison::print(ostream& os) const {
 // bitwise_or:
 //     | bitwise_or '|' bitwise_xor 
 //     | bitwise_xor
-BitwiseOr::BitwiseOr(Tokenizer *tokenizer) {
+BitwiseOr::BitwiseOr(Tokenizer *tokenizer, string indent) {
     log(__FUNCTION__, DEBUG); add_indent(2);
     this->tokenizer = tokenizer;
+    this->indent = indent;
     parse();
     sub_indent(2);
     log(__FUNCTION__ + (string)" - children.size() == " + to_string(children.size()), DEBUG);
 }
 void BitwiseOr::parse() {
-    children.push_back(new BitwiseXor(tokenizer));
+    children.push_back(new BitwiseXor(tokenizer, indent));
     while (peek("BitwiseOr").value == "|") {
         eat_value("|", "BitwiseOr");
-        children.push_back(new BitwiseXor(tokenizer));
+        children.push_back(new BitwiseXor(tokenizer, indent));
     }
 }
 PyObject BitwiseOr::evaluate(Stack stack) {
@@ -1453,18 +1496,19 @@ ostream& BitwiseOr::print(ostream& os) const {
 // bitwise_xor:
 //     | bitwise_xor '^' bitwise_and 
 //     | bitwise_and
-BitwiseXor::BitwiseXor(Tokenizer *tokenizer) {
+BitwiseXor::BitwiseXor(Tokenizer *tokenizer, string indent) {
     log(__FUNCTION__, DEBUG); add_indent(2);
     this->tokenizer = tokenizer;
+    this->indent = indent;
     parse();
     sub_indent(2);
     log(__FUNCTION__ + (string)" - children.size() == " + to_string(children.size()), DEBUG);
 }
 void BitwiseXor::parse() {
-    children.push_back(new BitwiseAnd(tokenizer));
+    children.push_back(new BitwiseAnd(tokenizer, indent));
     while (peek("BitwiseXor").value == "^") {
         eat_value("^", "BitwiseXor");
-        children.push_back(new BitwiseAnd(tokenizer));
+        children.push_back(new BitwiseAnd(tokenizer, indent));
     }
 }
 PyObject BitwiseXor::evaluate(Stack stack) {
@@ -1496,18 +1540,19 @@ ostream& BitwiseXor::print(ostream& os) const {
 // bitwise_and:
 //     | bitwise_and '&' shift_expr 
 //     | shift_expr
-BitwiseAnd::BitwiseAnd(Tokenizer *tokenizer) {
+BitwiseAnd::BitwiseAnd(Tokenizer *tokenizer, string indent) {
     log(__FUNCTION__, DEBUG); add_indent(2);
     this->tokenizer = tokenizer;
+    this->indent = indent;
     parse();
     sub_indent(2);
     log(__FUNCTION__ + (string)" - children.size() == " + to_string(children.size()), DEBUG);
 }
 void BitwiseAnd::parse() {
-    children.push_back(new ShiftExpr(tokenizer));
+    children.push_back(new ShiftExpr(tokenizer, indent));
     while (peek("BitwiseAnd").value == "&") {
         eat_value("&", "BitwiseAnd");
-        children.push_back(new ShiftExpr(tokenizer));
+        children.push_back(new ShiftExpr(tokenizer, indent));
     }
 }
 PyObject BitwiseAnd::evaluate(Stack stack) {
@@ -1540,18 +1585,19 @@ ostream& BitwiseAnd::print(ostream& os) const {
 //     | shift_expr '<<' sum 
 //     | shift_expr '>>' sum 
 //     | sum
-ShiftExpr::ShiftExpr(Tokenizer *tokenizer) {
+ShiftExpr::ShiftExpr(Tokenizer *tokenizer, string indent) {
     log(__FUNCTION__, DEBUG); add_indent(2);
     this->tokenizer = tokenizer;
+    this->indent = indent;
     parse();
     sub_indent(2);
     log(__FUNCTION__ + (string)" - children.size() == " + to_string(children.size()), DEBUG);
 }
 void ShiftExpr::parse() {
-    children.push_back(new Sum(tokenizer));
+    children.push_back(new Sum(tokenizer, indent));
     while (peek("ShiftExpr").value == "<<" || peek("ShiftExpr").value == ">>") {
-        children.push_back(new Op(tokenizer));
-        children.push_back(new Sum(tokenizer));
+        children.push_back(new Op(tokenizer, indent));
+        children.push_back(new Sum(tokenizer, indent));
     }
 }
 PyObject ShiftExpr::evaluate(Stack stack) {
@@ -1588,18 +1634,19 @@ ostream& ShiftExpr::print(ostream& os) const {
 //     | sum '+' term 
 //     | sum '-' term 
 //     | term
-Sum::Sum(Tokenizer *tokenizer) {
+Sum::Sum(Tokenizer *tokenizer, string indent) {
     log(__FUNCTION__, DEBUG); add_indent(2);
     this->tokenizer = tokenizer;
+    this->indent = indent;
     parse();
     sub_indent(2);
     log(__FUNCTION__ + (string)" - children.size() == " + to_string(children.size()), DEBUG);
 }
 void Sum::parse() {
-    children.push_back(new Term(tokenizer));
+    children.push_back(new Term(tokenizer, indent));
     while(is_sum_op(peek("Sum").value)) {
-        children.push_back(new Op(tokenizer));
-        children.push_back(new Term(tokenizer));
+        children.push_back(new Op(tokenizer, indent));
+        children.push_back(new Term(tokenizer, indent));
     }
 }
 PyObject Sum::evaluate(Stack stack) {
@@ -1639,18 +1686,19 @@ ostream& Sum::print(ostream& os) const {
 //     | term '%' factor 
 //     | term '@' factor 
 //     | factor
-Term::Term(Tokenizer *tokenizer) {
+Term::Term(Tokenizer *tokenizer, string indent) {
     log(__FUNCTION__, DEBUG); add_indent(2);
     this->tokenizer = tokenizer;
+    this->indent = indent;
     parse();
     sub_indent(2);
     log(__FUNCTION__ + (string)" - children.size() == " + to_string(children.size()), DEBUG);
 }
 void Term::parse() {
-    children.push_back(new Factor(tokenizer));
+    children.push_back(new Factor(tokenizer, indent));
     while(is_term_op(peek("Term").value)) {
-        children.push_back(new Op(tokenizer));
-        children.push_back(new Factor(tokenizer));
+        children.push_back(new Op(tokenizer, indent));
+        children.push_back(new Factor(tokenizer, indent));
     }
 }
 PyObject Term::evaluate(Stack stack) {
@@ -1688,9 +1736,10 @@ ostream& Term::print(ostream& os) const {
 //     | '-' factor 
 //     | '~' factor 
 //     | power
-Factor::Factor(Tokenizer *tokenizer) {
+Factor::Factor(Tokenizer *tokenizer, string indent) {
     log(__FUNCTION__, DEBUG); add_indent(2);
     this->tokenizer = tokenizer;
+    this->indent = indent;
     parse();
     sub_indent(2);
     log(__FUNCTION__ + (string)" - children.size() == " + to_string(children.size()), DEBUG);
@@ -1700,9 +1749,9 @@ void Factor::parse() {
         if (peek("Factor").value == "+") {
             eat_value("+", "Factor");  // the '+' doesn't really do anything
         }
-        children.push_back(new Op(tokenizer));
+        children.push_back(new Op(tokenizer, indent));
     }
-    children.push_back(new Power(tokenizer));
+    children.push_back(new Power(tokenizer, indent));
 }
 PyObject Factor::evaluate(Stack stack) {
     log("Factor::evaluate()", DEBUG); add_indent(2);
@@ -1747,18 +1796,19 @@ ostream& Factor::print(ostream& os) const {
 // power:
 //     | await_primary '**' factor 
 //     | await_primary
-Power::Power(Tokenizer *tokenizer) {
+Power::Power(Tokenizer *tokenizer, string indent) {
     log(__FUNCTION__, DEBUG); add_indent(2);
     this->tokenizer = tokenizer;
+    this->indent = indent;
     parse();
     sub_indent(2);
     log(__FUNCTION__ + (string)" - children.size() == " + to_string(children.size()), DEBUG);
 }
 void Power::parse() {
-    children.push_back(new AwaitPrimary(tokenizer));
+    children.push_back(new AwaitPrimary(tokenizer, indent));
     if (peek("Power").value == "**") {
         eat_value("**", "Power");
-        children.push_back(new Factor(tokenizer));
+        children.push_back(new Factor(tokenizer, indent));
     }
 }
 PyObject Power::evaluate(Stack stack) {
@@ -1786,16 +1836,17 @@ ostream& Power::print(ostream& os) const {
 // await_primary:
 //     | AWAIT primary 
 //     | primary
-AwaitPrimary::AwaitPrimary(Tokenizer *tokenizer) {
+AwaitPrimary::AwaitPrimary(Tokenizer *tokenizer, string indent) {
     log(__FUNCTION__, DEBUG); add_indent(2);
     this->tokenizer = tokenizer;
+    this->indent = indent;
     parse();
     sub_indent(2);
     log(__FUNCTION__ + (string)" - children.size() == " + to_string(children.size()), DEBUG);
 }
 void AwaitPrimary::parse() {
     // TODO: implement this completely
-    children.push_back(new Primary(tokenizer));
+    children.push_back(new Primary(tokenizer, indent));
 }
 PyObject AwaitPrimary::evaluate(Stack stack) {
     log("AwaitPrimary::evaluate()", DEBUG); add_indent(2);
@@ -1820,9 +1871,10 @@ ostream& AwaitPrimary::print(ostream& os) const {
 //     | primary '(' [arguments] ')' 
 //     | primary '[' slices ']' 
 //     | atom
-Primary::Primary(Tokenizer *tokenizer) {
+Primary::Primary(Tokenizer *tokenizer, string indent) {
     log(__FUNCTION__, DEBUG); add_indent(2);
     this->tokenizer = tokenizer;
+    this->indent = indent;
     parse();
     sub_indent(2);
     log(__FUNCTION__ + (string)" - children.size() == " + to_string(children.size()), DEBUG);
@@ -1831,14 +1883,14 @@ void Primary::parse() {
     // NOTE: this is supposed to be a left recusive production
     // im keeping it simple atm but its likely that a while loop will
     // be needed like Term, Sum, etc
-    children.push_back(new Atom(tokenizer));
+    children.push_back(new Atom(tokenizer, indent));
     if (peek("Primary").value == ".") {
         // TODO: implement
         throw runtime_error("Primary: '.' not implemented");
     } else if(peek("Primary").value == "(") {
-        children.push_back(new _String(tokenizer));  // (
-        children.push_back(new Arguments(tokenizer));
-        children.push_back(new _String(tokenizer));  // )
+        children.push_back(new _String(tokenizer, indent));  // (
+        children.push_back(new Arguments(tokenizer, indent));
+        children.push_back(new _String(tokenizer, indent));  // )
     }
 }
 PyObject Primary::evaluate(Stack stack) {
@@ -1874,7 +1926,7 @@ ostream& Primary::print(ostream& os) const {
 // slices:
 //     | slice !',' 
 //     | ','.slice+ [','] 
-Slices::Slices(Tokenizer *tokenizer) {
+Slices::Slices(Tokenizer *tokenizer, string indent) {
 
 }
 void Slices::parse() {
@@ -1896,7 +1948,7 @@ ostream& Slices::print(ostream& os) const {
 // slice:
 //     | [expression] ':' [expression] [':' [expression] ] 
 //     | expression 
-Slice::Slice(Tokenizer *tokenizer) {
+Slice::Slice(Tokenizer *tokenizer, string indent) {
 
 }
 void Slice::parse() {
@@ -1927,9 +1979,10 @@ ostream& Slice::print(ostream& os) const {
 //     | (list | listcomp)
 //     | (dict | set | dictcomp | setcomp)
 //     | '...' 
-Atom::Atom(Tokenizer *tokenizer) {
+Atom::Atom(Tokenizer *tokenizer, string indent) {
     log(__FUNCTION__, DEBUG); add_indent(2);
     this->tokenizer = tokenizer;
+    this->indent = indent;
     parse();
     sub_indent(2);
     log(__FUNCTION__ + (string)" - children.size() == " + to_string(children.size()), DEBUG);
@@ -1944,12 +1997,12 @@ void Atom::parse() {
     else if (peek("Atom").value == "(") {
         // TODO: figure out a cleaner way to determine if this should be
         // a tuple, group, or genexp
-        children.push_back(new Tuple(tokenizer));
+        children.push_back(new Tuple(tokenizer, indent));
     }
     else if (peek("Atom").value == "[") {
         // TODO: figure out a cleaner way to determine if this should be
         // a list or listcomp
-        children.push_back(new List(tokenizer));
+        children.push_back(new List(tokenizer, indent));
     }
     else {
         children.push_back(new _String(next_token()));
@@ -1973,16 +2026,17 @@ ostream& Atom::print(ostream& os) const {
 
 // list:
 //     | '[' [star_named_expressions] ']'
-List::List(Tokenizer *tokenizer) {
+List::List(Tokenizer *tokenizer, string indent) {
     log(__FUNCTION__, DEBUG); add_indent(2);
     this->tokenizer = tokenizer;
+    this->indent = indent;
     parse();
     sub_indent(2);
     log(__FUNCTION__ + (string)" - children.size() == " + to_string(children.size()), DEBUG);
 }
 void List::parse() {
     eat_value("[", "List");
-    children.push_back(new StarNamedExpressions(tokenizer));
+    children.push_back(new StarNamedExpressions(tokenizer, indent));
     eat_value("]", "List");
 }
 PyObject List::evaluate(Stack stack) {
@@ -2012,9 +2066,10 @@ ostream& List::print(ostream& os) const {
 
 // tuple:
 //     | '(' [star_named_expression ',' [star_named_expressions]  ] ')'
-Tuple::Tuple(Tokenizer *tokenizer) {
+Tuple::Tuple(Tokenizer *tokenizer, string indent) {
     log(__FUNCTION__, DEBUG); add_indent(2);
     this->tokenizer = tokenizer;
+    this->indent = indent;
     parse();
     sub_indent(2);
     log(__FUNCTION__ + (string)" - children.size() == " + to_string(children.size()), DEBUG);
@@ -2022,11 +2077,11 @@ Tuple::Tuple(Tokenizer *tokenizer) {
 void Tuple::parse() {
     eat_value("(", "Tuple");
     if (peek("Tuple").value != ")") {
-        children.push_back(new StarNamedExpression(tokenizer));
+        children.push_back(new StarNamedExpression(tokenizer, indent));
         eat_value(",", "Tuple");
     }
     if (peek("Tuple").value != ")") {
-        children.push_back(new StarNamedExpressions(tokenizer));
+        children.push_back(new StarNamedExpressions(tokenizer, indent));
     }
     eat_value(")", "Tuple");
 }
@@ -2059,19 +2114,20 @@ ostream& Tuple::print(ostream& os) const {
 
 // arguments:
 //     | args [','] &')' 
-Arguments::Arguments(Tokenizer *tokenizer) {
+Arguments::Arguments(Tokenizer *tokenizer, string indent) {
     log(__FUNCTION__, DEBUG); add_indent(2);
     this->tokenizer = tokenizer;
+    this->indent = indent;
     parse();
     sub_indent(2);
     log(__FUNCTION__ + (string)" - children.size() == " + to_string(children.size()), DEBUG);
 }
 void Arguments::parse() {
     if (peek("Arguments").value != ")") {
-        children.push_back(new Args(tokenizer));
+        children.push_back(new Args(tokenizer, indent));
         while (peek("Arguments").value == ",") {
             eat_value(",", "Arguments");
-            children.push_back(new Args(tokenizer));
+            children.push_back(new Args(tokenizer, indent));
         }
     }
 }
@@ -2101,16 +2157,17 @@ ostream& Arguments::print(ostream& os) const {
 // args:
 //     | ','.(starred_expression | named_expression !'=')+ [',' kwargs ] 
 //     | kwargs 
-Args::Args(Tokenizer *tokenizer) {
+Args::Args(Tokenizer *tokenizer, string indent) {
     log(__FUNCTION__, DEBUG); add_indent(2);
     this->tokenizer = tokenizer;
+    this->indent = indent;
     parse();
     sub_indent(2);
     log(__FUNCTION__ + (string)" - children.size() == " + to_string(children.size()), DEBUG);
 }
 void Args::parse() {
     //TODO: args are really complicated, im simplifying them for now
-    children.push_back(new Expression(tokenizer));
+    children.push_back(new Expression(tokenizer, indent));
 }
 PyObject Args::evaluate(Stack stack) {
     log("Args::evaluate()", DEBUG); add_indent(2);
@@ -2128,9 +2185,10 @@ ostream& Args::print(ostream& os) const {
 //===============================================================
 // Op
 
-Op::Op(Tokenizer *tokenizer) {
+Op::Op(Tokenizer *tokenizer, string indent) {
     log(__FUNCTION__, DEBUG);
     this->tokenizer = tokenizer;
+    this->indent = indent;
     token = next_token();
     log(__FUNCTION__ + (string)" - token.value == '" + token.value + "'", DEBUG);
 }
@@ -2152,7 +2210,7 @@ _String::_String(Token token) {
     parse();
     log(__FUNCTION__ + (string)" - this->value == '" + this->value + "'", DEBUG);
 }
-_String::_String(Tokenizer *tokenizer) {
+_String::_String(Tokenizer *tokenizer, string indent) {
     log(__FUNCTION__, DEBUG);
     this->token = tokenizer->next_token();
     parse();
@@ -2183,7 +2241,7 @@ Number::Number(Token token) {
     parse();
     log(__FUNCTION__ + (string)" - token.value == '" + token.value + "'", DEBUG);
 }
-Number::Number(Tokenizer *tokenizer) {
+Number::Number(Tokenizer *tokenizer, string indent) {
     log(__FUNCTION__, DEBUG);
     this->token = tokenizer->next_token();
     parse();
@@ -2213,7 +2271,7 @@ Bool::Bool(Token token) {
     parse();
     log(__FUNCTION__ + (string)" - token.value == '" + token.value + "'", DEBUG);
 }
-Bool::Bool(Tokenizer *tokenizer) {
+Bool::Bool(Tokenizer *tokenizer, string indent) {
     log(__FUNCTION__, DEBUG);
     this->token = token;
     parse();

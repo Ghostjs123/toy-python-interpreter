@@ -25,10 +25,10 @@ AST* Parser::parse(string mode) {
     tokenizer->begin();
 	advance_to_start();
 	if (mode == "file") {
-		return new File(tokenizer);
+		return new File(tokenizer, "");
 	}
 	else if (mode == "interactive") {
-		return new Interactive(tokenizer);
+		return new Interactive(tokenizer, "");
 	}
 	throw runtime_error("unsupported mode '" + mode + "' for parser");
 }
