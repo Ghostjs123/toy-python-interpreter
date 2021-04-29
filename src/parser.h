@@ -10,8 +10,6 @@ using namespace std;
 class Parser {
     private:
         Tokenizer* tokenizer;
-
-        void advance_to_start();
     public:
         Parser(Tokenizer *tokenizer);
         

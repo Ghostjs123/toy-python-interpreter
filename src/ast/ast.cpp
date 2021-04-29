@@ -36,11 +36,11 @@ AST::AST(Tokenizer *tokenizer, string indent) {
     this->indent = indent;
 }
 AST::~AST() {
-    // log(__FUNCTION__, DEBUG);  // this is spammy
+    // log(__FUNCTION__ + (string)" - " + to_string(rewind_amt), DEBUG);  // this is spammy
+    if (rewind_amt > 0) tokenizer->rewind(rewind_amt);
 }
 Token AST::peek(string func_name) {
     try {
-        tokenizer->find_next();
         return tokenizer->peek();
     } catch (exception& e) {
         cout << func_name << ": " << e.what() << endl;
@@ -51,7 +51,6 @@ Token AST::lookahead(int amt) {
     return tokenizer->lookahead(amt);
 }
 Token AST::next_token() {
-    tokenizer->find_next();
     Token t = tokenizer->next_token();
     log(": " + t.as_string(), DEBUG);
     return t;
@@ -62,6 +61,7 @@ void AST::eat_value(string exp_value, string func_name) {
         throw runtime_error("ate '" + next.value + "' expected '" 
                             + exp_value + "' in '" + func_name + "'");
     }
+    rewind_amt++;
 }
 void AST::eat_type(string exp_type, string func_name) {
     Token next = next_token();
@@ -69,6 +69,7 @@ void AST::eat_type(string exp_type, string func_name) {
         throw runtime_error("ate '" + next.type + "' expected '" 
                             + exp_type + "' in '" + func_name + "'");
     }
+    rewind_amt++;
 }
 PyObject AST::evaluate(Stack stack) {
     throw runtime_error("Attempted to evaluate an AST - start evaluation at a subclass");

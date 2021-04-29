@@ -3,6 +3,7 @@
 #include <regex>
 #include <ctype.h>
 #include <cstdlib>
+#include <algorithm>
 #include <string>
 #include <tuple>
 #include "logging.h"
@@ -512,24 +513,18 @@ void Tokenizer::log() {
     }
 }
 
-void Tokenizer::find_next() {
-    // NL's are strictly empty lines, skipping them here
-    // also skipping comments here
-    Logger* lg = Logger::get_instance();
-    while(tokens[pos].type == "NL" || tokens[pos].type == "COMMENT") {
-        if (tokens[pos].type == "NL") {
-            lg->log("- " + tokens[pos].as_string(), DEBUG);
-            pos++;
-        }
-        else if (tokens[pos].type == "COMMENT") {
-            lg->log("- " + tokens[pos].as_string(), DEBUG);
-            pos++;
-            if (tokens[pos].type == "NEWLINE") {  // should always be true
-                lg->log("- " + tokens[pos].as_string(), DEBUG);
-                pos++;
-            }
-        }
-    }
+void Tokenizer::strip() {
+    // removing all NL's -- completely empty lines, and COMMENT's
+    int before = tokens.size();
+
+    tokens.erase(
+        remove_if(tokens.begin(), tokens.end(), 
+            [](Token t){return t.type == "NL" || t.type == "COMMENT";}
+        ), tokens.end()
+    );
+
+    Logger::get_instance()->log("strip() before = " + to_string(before) 
+                                + " after = " + to_string(tokens.size()), DEBUG);
 }
 
 Token Tokenizer::next_token() {

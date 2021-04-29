@@ -95,6 +95,7 @@ class AST {
         string indent;
         Tokenizer *tokenizer;
         vector<AST *> children;
+        int rewind_amt = 0;
         
         AST();
         AST(Tokenizer *tokenizer, string indent);

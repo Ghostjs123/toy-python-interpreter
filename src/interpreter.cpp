@@ -243,8 +243,6 @@ void interacive_terminal() {
 }
 
 void cleanup() {
-	// TODO: define destructors for all AST nodes and start deletion here
-
 	Logger::get_instance()->close();
 }
 
@@ -258,6 +256,7 @@ int main(int argc, char* argv[]) {
 			Logger::get_instance()->set_mode(DEBUG);
 		}
 		tokenizer.log();
+		tokenizer.strip();
 
 		try {
 			Parser parser(&tokenizer);
@@ -269,13 +268,12 @@ int main(int argc, char* argv[]) {
 			cout << endl << "stdout:" << endl;
 			(*parse_tree).evaluate(stack);
 
-			cout << endl << "deleting:" << endl;
+			if (argc > 2 && argv[2] == (string)"-v") cout << endl << "deleting:" << endl;
 			delete parse_tree;
 		}
 		catch (exception& e) {
 			cout << "exception: " << e.what() << endl;
 		}
-
 	} else {
 		// interactive terminal
 		init_ncurses();

@@ -10,7 +10,7 @@ class Tokenizer {
 	private:
 		vector<string> input;
 		vector<Token> tokens;
-		int length, pos;
+		// int length, pos;
 
 		const string delimiters = "\"'&|;:,.()+-=*/%[]#<>*";
 		const string delimiters_not_string = "&|;:,.()+-=*/%[]#<>*";
@@ -34,6 +34,7 @@ class Tokenizer {
 		void tokenize();
 
 	public:
+		int length, pos; // TEMP
 		Tokenizer();
 		Tokenizer(vector<string> input);
 
@@ -44,7 +45,7 @@ class Tokenizer {
 		void print();
 		void log();
 
-		void find_next();
+		void strip();
 		Token next_token();
 		Token peek();
 		Token lookahead(int amt);

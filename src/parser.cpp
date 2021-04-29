@@ -13,17 +13,8 @@ Parser::Parser(Tokenizer* tokenizer) {
     this->tokenizer = tokenizer;
 }
 
-void Parser::advance_to_start() {
-	// skips empty lines
-	while ((tokenizer->peek().type == "NL" || tokenizer->peek().type == "NEWLINE")
-			&& tokenizer->peek().type != "ENDMARKER") {
-		tokenizer->next_token();
-	}
-}
-
 AST* Parser::parse(string mode) {
     tokenizer->begin();
-	advance_to_start();
 	if (mode == "file") {
 		return new File(tokenizer, "");
 	}

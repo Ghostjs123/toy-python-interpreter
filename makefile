@@ -16,6 +16,14 @@ default:
 	make mypy
 	make tokenizer-main
 
+# flags everything for re-compile
+touch-all:
+	touch src/*
+	touch src/ast/*
+	touch src/objects/*
+	touch src/stack/*
+	touch tests/*
+
 # main target
 mypy: $(interpreter)
 	g++ $(interpreter) $(default_args) $(includes) -o mypy
