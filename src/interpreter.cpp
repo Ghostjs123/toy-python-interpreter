@@ -269,6 +269,7 @@ int main(int argc, char* argv[]) {
 			cout << endl << "stdout:" << endl;
 			(*parse_tree).evaluate(stack);
 
+			cout << endl << "deleting:" << endl;
 			delete parse_tree;
 		}
 		catch (exception& e) {

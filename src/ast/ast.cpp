@@ -35,6 +35,9 @@ AST::AST(Tokenizer *tokenizer, string indent) {
     this->tokenizer = tokenizer;
     this->indent = indent;
 }
+AST::~AST() {
+    // log(__FUNCTION__, DEBUG);  // this is spammy
+}
 Token AST::peek(string func_name) {
     try {
         tokenizer->find_next();
@@ -52,9 +55,6 @@ Token AST::next_token() {
     Token t = tokenizer->next_token();
     log(": " + t.as_string(), DEBUG);
     return t;
-}
-void AST::eat(string func_name) {
-    Token next = next_token();
 }
 void AST::eat_value(string exp_value, string func_name) {
     Token next = next_token();
@@ -99,17 +99,19 @@ File::File(Tokenizer *tokenizer, string indent) {
     sub_indent(2);
     log(__FUNCTION__ + (string)" - children.size() == " + to_string(children.size()), DEBUG);
 }
+File::~File() {
+    log(__FUNCTION__, DEBUG); add_indent(2);
+    for (AST* child : children) delete child;
+    children.clear();
+    sub_indent(2);
+}
 void File::parse() {
-    while (peek("File").type != "ENDMARKER") {
-        children.push_back(new Statements(tokenizer, indent));
-    }
+    children.push_back(new Statements(tokenizer, indent));
     eat_type("ENDMARKER", "File");
 }
 PyObject File::evaluate(Stack stack) {
     log("File::evaluate()", DEBUG); add_indent(2);
-    for (AST *child : children) {
-        child->evaluate(stack);
-    }
+    children.at(0)->evaluate(stack);
     sub_indent(2);
     return PyObject();
 }
@@ -131,6 +133,12 @@ Interactive::Interactive(Tokenizer *tokenizer, string indent) {
     parse();
     sub_indent(2);
     log(__FUNCTION__ + (string)" - children.size() == " + to_string(children.size()), DEBUG);
+}
+Interactive::~Interactive() {
+    log(__FUNCTION__, DEBUG); add_indent(2);
+    for (AST* child : children) delete child;
+    children.clear();
+    sub_indent(2);
 }
 void Interactive::parse() {
     children.push_back(new StatementNewline(tokenizer, indent));
@@ -158,25 +166,27 @@ Statements::Statements(Tokenizer *tokenizer, string indent) {
     sub_indent(2);
     log(__FUNCTION__ + (string)" - children.size() == " + to_string(children.size()), DEBUG);
 }
+Statements::~Statements() {
+    log(__FUNCTION__, DEBUG); add_indent(2);
+    for (AST* child : children) delete child;
+    children.clear();
+    sub_indent(2);
+}
 void Statements::parse() {
-    Statement* temp = new Statement(tokenizer, indent);
-    if (temp->children.size() == 0) {
-        delete temp;
-    } else {
-        children.push_back(temp);
+    while (peek("Statements").type != "ENDMARKER") {
+        children.push_back(new Statement(tokenizer, indent));
     }
 }
 PyObject Statements::evaluate(Stack stack) {
     log("Statements::evaluate()", DEBUG); add_indent(2);
-    if (children.size() > 0) {
-        sub_indent(2);
-        return children.at(0)->evaluate(stack);
+    for (AST* child : children) {
+        child->evaluate(stack);
     }
     sub_indent(2);
     return PyObject();
 }
 ostream& Statements::print(ostream& os) const {
-    if (children.size() > 0) os << *children.at(0);
+    for (AST* child : children) os << *child;
     return os;
 }
 
@@ -193,6 +203,12 @@ Statement::Statement(Tokenizer *tokenizer, string indent) {
     parse();
     sub_indent(2);
     log(__FUNCTION__ + (string)" - children.size() == " + to_string(children.size()), DEBUG);
+}
+Statement::~Statement() {
+    log(__FUNCTION__, DEBUG); add_indent(2);
+    for (AST* child : children) delete child;
+    children.clear();
+    sub_indent(2);
 }
 void Statement::parse() {
     CompoundStmt *temp = new CompoundStmt(tokenizer, indent);
@@ -233,6 +249,12 @@ StatementNewline::StatementNewline(Tokenizer *tokenizer, string indent) {
     parse();
     sub_indent(2);
     log(__FUNCTION__ + (string)" - children.size() == " + to_string(children.size()), DEBUG);
+}
+StatementNewline::~StatementNewline() {
+    log(__FUNCTION__, DEBUG); add_indent(2);
+    for (AST* child : children) delete child;
+    children.clear();
+    sub_indent(2);
 }
 void StatementNewline::parse() {
     if (peek("StatementNewline").type == "NEWLINE") {
@@ -280,6 +302,12 @@ SimpleStmt::SimpleStmt(Tokenizer *tokenizer, string indent) {
     sub_indent(2);
     log(__FUNCTION__ + (string)" - children.size() == " + to_string(children.size()), DEBUG);
 }
+SimpleStmt::~SimpleStmt() {
+    log(__FUNCTION__, DEBUG); add_indent(2);
+    for (AST* child : children) delete child;
+    children.clear();
+    sub_indent(2);
+}
 void SimpleStmt::parse() {
     // TODO: grammar needs to support ;
     children.push_back(new SmallStmt(tokenizer, indent));
@@ -323,6 +351,12 @@ SmallStmt::SmallStmt(Tokenizer *tokenizer, string indent) {
     parse();
     sub_indent(2);
     log(__FUNCTION__ + (string)" - children.size() == " + to_string(children.size()), DEBUG);
+}
+SmallStmt::~SmallStmt() {
+    log(__FUNCTION__, DEBUG); add_indent(2);
+    for (AST* child : children) delete child;
+    children.clear();
+    sub_indent(2);
 }
 void SmallStmt::parse() {
     if (peek("SmallStmt").value == "return") {
@@ -394,6 +428,12 @@ CompoundStmt::CompoundStmt(Tokenizer *tokenizer, string indent) {
     sub_indent(2);
     log(__FUNCTION__ + (string)" - children.size() == " + to_string(children.size()), DEBUG);
 }
+CompoundStmt::~CompoundStmt() {
+    log(__FUNCTION__, DEBUG); add_indent(2);
+    for (AST* child : children) delete child;
+    children.clear();
+    sub_indent(2);
+}
 void CompoundStmt::parse() {
     if (peek("CompoundStmt").value == "if") {
         children.push_back(new IfStmt(tokenizer, indent));
@@ -451,6 +491,12 @@ Assignment::Assignment(Tokenizer *tokenizer, string indent) {
     sub_indent(2);
     log(__FUNCTION__ + (string)" - children.size() == " + to_string(children.size()), DEBUG);
 }
+Assignment::~Assignment() {
+    log(__FUNCTION__, DEBUG); add_indent(2);
+    for (AST* child : children) delete child;
+    children.clear();
+    sub_indent(2);
+}
 void Assignment::parse() {
     // TODO:
 }
@@ -480,6 +526,12 @@ IfStmt::IfStmt(Tokenizer *tokenizer, string indent) {
     parse();
     sub_indent(2);
     log(__FUNCTION__ + (string)" - children.size() == " + to_string(children.size()), DEBUG);
+}
+IfStmt::~IfStmt() {
+    log(__FUNCTION__, DEBUG); add_indent(2);
+    for (AST* child : children) delete child;
+    children.clear();
+    sub_indent(2);
 }
 void IfStmt::parse() {
     eat_value("if", "IfStmt");
@@ -536,6 +588,12 @@ ElifStmt::ElifStmt(Tokenizer *tokenizer, string indent) {
     parse();
     sub_indent(2);
     log(__FUNCTION__ + (string)" - children.size() == " + to_string(children.size()), DEBUG);
+}
+ElifStmt::~ElifStmt() {
+    log(__FUNCTION__, DEBUG); add_indent(2);
+    for (AST* child : children) delete child;
+    children.clear();
+    sub_indent(2);
 }
 void ElifStmt::parse() {
     NamedExpression *t1;
@@ -597,6 +655,12 @@ ElseBlock::ElseBlock(Tokenizer *tokenizer, string indent) {
     sub_indent(2);
     log(__FUNCTION__ + (string)" - children.size() == " + to_string(children.size()), DEBUG);
 }
+ElseBlock::~ElseBlock() {
+    log(__FUNCTION__, DEBUG); add_indent(2);
+    for (AST* child : children) delete child;
+    children.clear();
+    sub_indent(2);
+}
 void ElseBlock::parse() {
     eat_value("else", "ElseBlock");
     eat_value(":", "ElseBlock");
@@ -625,6 +689,12 @@ WhileStmt::WhileStmt(Tokenizer *tokenizer, string indent) {
     parse();
     sub_indent(2);
     log(__FUNCTION__ + (string)" - children.size() == " + to_string(children.size()), DEBUG);
+}
+WhileStmt::~WhileStmt() {
+    log(__FUNCTION__, DEBUG); add_indent(2);
+    for (AST* child : children) delete child;
+    children.clear();
+    sub_indent(2);
 }
 void WhileStmt::parse() {
     // TODO:
@@ -666,6 +736,12 @@ ForStmt::ForStmt(Tokenizer *tokenizer, string indent) {
     sub_indent(2);
     log(__FUNCTION__ + (string)" - children.size() == " + to_string(children.size()), DEBUG);
 }
+ForStmt::~ForStmt() {
+    log(__FUNCTION__, DEBUG); add_indent(2);
+    for (AST* child : children) delete child;
+    children.clear();
+    sub_indent(2);
+}
 void ForStmt::parse() {
     // TODO:
 }
@@ -697,6 +773,12 @@ WithStmt::WithStmt(Tokenizer *tokenizer, string indent) {
     sub_indent(2);
     log(__FUNCTION__ + (string)" - children.size() == " + to_string(children.size()), DEBUG);
 }
+WithStmt::~WithStmt() {
+    log(__FUNCTION__, DEBUG); add_indent(2);
+    for (AST* child : children) delete child;
+    children.clear();
+    sub_indent(2);
+}
 void WithStmt::parse() {
     // TODO:
 }
@@ -726,6 +808,12 @@ WithItem::WithItem(Tokenizer *tokenizer, string indent) {
     sub_indent(2);
     log(__FUNCTION__ + (string)" - children.size() == " + to_string(children.size()), DEBUG);
 }
+WithItem::~WithItem() {
+    log(__FUNCTION__, DEBUG); add_indent(2);
+    for (AST* child : children) delete child;
+    children.clear();
+    sub_indent(2);
+}
 void WithItem::parse() {
     // TODO:
 }
@@ -751,6 +839,12 @@ TryStmt::TryStmt(Tokenizer *tokenizer, string indent) {
     parse();
     sub_indent(2);
     log(__FUNCTION__ + (string)" - children.size() == " + to_string(children.size()), DEBUG);
+}
+TryStmt::~TryStmt() {
+    log(__FUNCTION__, DEBUG); add_indent(2);
+    for (AST* child : children) delete child;
+    children.clear();
+    sub_indent(2);
 }
 void TryStmt::parse() {
     // TODO:
@@ -781,6 +875,12 @@ ExceptBlock::ExceptBlock(Tokenizer *tokenizer, string indent) {
     sub_indent(2);
     log(__FUNCTION__ + (string)" - children.size() == " + to_string(children.size()), DEBUG);
 }
+ExceptBlock::~ExceptBlock() {
+    log(__FUNCTION__, DEBUG); add_indent(2);
+    for (AST* child : children) delete child;
+    children.clear();
+    sub_indent(2);
+}
 void ExceptBlock::parse() {
     // TODO:
 }
@@ -807,6 +907,12 @@ FinallyBlock::FinallyBlock(Tokenizer *tokenizer, string indent) {
     parse();
     sub_indent(2);
     log(__FUNCTION__ + (string)" - children.size() == " + to_string(children.size()), DEBUG);
+}
+FinallyBlock::~FinallyBlock() {
+    log(__FUNCTION__, DEBUG); add_indent(2);
+    for (AST* child : children) delete child;
+    children.clear();
+    sub_indent(2);
 }
 void FinallyBlock::parse() {
     // TODO:
@@ -835,6 +941,12 @@ ReturnStmt::ReturnStmt(Tokenizer *tokenizer, string indent) {
     parse();
     sub_indent(2);
     log(__FUNCTION__ + (string)" - children.size() == " + to_string(children.size()), DEBUG);
+}
+ReturnStmt::~ReturnStmt() {
+    log(__FUNCTION__, DEBUG); add_indent(2);
+    for (AST* child : children) delete child;
+    children.clear();
+    sub_indent(2);
 }
 void ReturnStmt::parse() {
     eat_value("return", "ReturnStmt");
@@ -867,6 +979,13 @@ FunctionDef::FunctionDef(Tokenizer *tokenizer, string indent) {
     sub_indent(2);
     log(__FUNCTION__ + (string)" - children.size() == " + to_string(children.size()), DEBUG);
 }
+FunctionDef::~FunctionDef() {
+    log(__FUNCTION__, DEBUG); add_indent(2);
+    for (AST* child : children) delete child;
+    children.clear();
+    sub_indent(2);
+    delete this->raw;
+}
 void FunctionDef::parse() {
     this->raw = new FunctionDefRaw(tokenizer, indent);
 }
@@ -897,15 +1016,20 @@ FunctionDefRaw::FunctionDefRaw(Tokenizer *tokenizer, string indent) {
     sub_indent(2);
     log(__FUNCTION__ + (string)" - children.size() == " + to_string(children.size()), DEBUG);
 }
+FunctionDefRaw::~FunctionDefRaw() {
+    log(__FUNCTION__, DEBUG); add_indent(2);
+    for (AST* child : children) delete child;
+    children.clear();
+    delete this->body;
+    delete this->params;
+    tokenizer->rewind(1);  // name
+    sub_indent(2);
+}
 void FunctionDefRaw::parse() {
     eat_value("def", "FunctionDefRaw");
     this->name = next_token().value;
     eat_value("(", "FunctionDefRaw");
-    vector<AST*> params;
-    while (peek("FunctionDefRaw").value != ")") {
-        params.push_back(new _String(tokenizer, indent));
-    }
-    this->params = params;
+    this->params = new Params(tokenizer, indent);
     eat_value(")", "FunctionDefRaw");
     eat_value(":", "FunctionDefRaw");
     this->body = new Block(tokenizer, indent);
@@ -916,18 +1040,543 @@ PyObject FunctionDefRaw::evaluate(Stack stack) {
     return PyObject();
 }
 ostream& FunctionDefRaw::print(ostream& os) const {
-    os << "def " << name << "(";
-    if (params.size() > 1) {
-        for (int i=0; i < params.size()-1; i++) {
-            os << *params.at(i) << ", ";
-        }
-        os << *params.back();
-    }
-    else if (params.size() == 1) os << *params.back();
-    os << "):" << *body;
+    os << "def " << name << "(" << params << "):" << *body;
     return os;
 }
 
+//===============================================================
+// Params
+
+// params:
+//     | parameters
+Params::Params(Tokenizer *tokenizer, string indent) {
+    log(__FUNCTION__, DEBUG); add_indent(2);
+    this->tokenizer = tokenizer;
+    this->indent = indent;
+    parse();
+    sub_indent(2);
+    log(__FUNCTION__ + (string)" - children.size() == " + to_string(children.size()), DEBUG);
+}
+Params::~Params() {
+    log(__FUNCTION__, DEBUG); add_indent(2);
+    for (AST* child : children) delete child;
+    children.clear();
+    sub_indent(2);
+}
+void Params::parse() {
+    children.push_back(new Parameters(tokenizer, indent));
+}
+PyObject Params::evaluate(Stack stack) {
+    log("Params::evaluate()", DEBUG); add_indent(2);
+    PyObject ret = children.at(0)->evaluate(stack);
+    sub_indent(2);
+    return PyObject();
+}
+ostream& Params::print(ostream& os) const {
+    os << *children.at(0);
+    return os;
+}
+
+
+//===============================================================
+// Parameters
+
+// NOTE: slash_no_default vs slash_with_default are important
+// no_default uses + while with_default uses *
+
+// parameters:
+//     | slash_no_default param_no_default* param_with_default* [star_etc]
+//     | slash_with_default param_with_default* [star_etc]
+//     | param_no_default+ param_with_default* [star_etc]
+//     | param_with_default+ [star_etc]
+//     | star_etc
+Parameters::Parameters(Tokenizer *tokenizer, string indent) {
+    log(__FUNCTION__, DEBUG); add_indent(2);
+    this->tokenizer = tokenizer;
+    this->indent = indent;
+    parse();
+    sub_indent(2);
+    log(__FUNCTION__ + (string)" - children.size() == " + to_string(children.size()), DEBUG);
+}
+Parameters::~Parameters() {
+    log(__FUNCTION__, DEBUG); add_indent(2);
+    for (AST* child : children) delete child;
+    children.clear();
+    sub_indent(2);
+}
+void Parameters::parse() {
+    // NOTE: parsing this thing is gonna be weird, my main goal is to determine two things:
+    // 1. does it need to swap from no_default -> with_default
+    // 2. did it find a /, to be lazy im gonna lookahead for the / first
+    // I'm checking these by checking the amount of children in the AST after parsing
+    // , if 0 then mismatched
+    
+    int i = 0;
+    while(lookahead(i).value != "/" && lookahead(i).value != ")") i++;
+
+    if (lookahead(i).value == "/" ) {
+        SlashNoDefault* snd = new SlashNoDefault(tokenizer, indent);
+        if (snd->children.size() > 0) {
+            //     | slash_no_default param_no_default* param_with_default* [star_etc]
+            children.push_back(snd);
+            ParamNoDefault* pnd;
+            while (1) {
+                pnd = new ParamNoDefault(tokenizer, indent);
+                if (pnd->children.size() == 0) {
+                    delete pnd;
+                    break;
+                }
+                else { children.push_back(pnd); }
+            }
+            while (peek("Parameters").value != "*" 
+                    && peek("Parameters").value != "**" && peek("Parameters").value != ")") {
+                children.push_back(new ParamWithDefault(tokenizer, indent));
+            }
+        }
+        else {
+            //     | slash_with_default param_with_default* [star_etc]
+            delete snd;
+
+            children.push_back(new SlashWithDefault(tokenizer, indent));
+            while (peek("Parameters").value != "*" 
+                    && peek("Parameters").value != "**" && peek("Parameters").value != ")") {
+                children.push_back(new ParamWithDefault(tokenizer, indent));
+            }
+        }
+    }
+    else {
+        //     | param_no_default+ param_with_default* [star_etc]
+        //     | param_with_default+ [star_etc]
+        ParamNoDefault* pnd;
+        while (1) {
+            pnd = new ParamNoDefault(tokenizer, indent);
+            if (pnd->children.size() == 0) {
+                delete pnd;
+                break;
+            }
+            else { children.push_back(pnd); }
+        }
+        while (peek("Parameters").value != "*" 
+                && peek("Parameters").value != "**" && peek("Parameters").value != ")") {
+            children.push_back(new ParamWithDefault(tokenizer, indent));
+        }
+    }
+
+    // all productions end with optional star_etc
+    if (peek("Parameters").value == "*" || peek("Parameters").value == "**") {
+        children.push_back(new StarEtc(tokenizer, indent));
+    }
+}
+PyObject Parameters::evaluate(Stack stack) {
+    log("Parameters::evaluate()", DEBUG); add_indent(2);
+    vector<PyObject> results;
+    for (AST *child : children) {
+        results.push_back(child->evaluate(stack));
+    }
+    sub_indent(2);
+    return PyObject(results, "tuple");
+}
+ostream& Parameters::print(ostream& os) const {
+    os << *children.at(0);
+    return os;
+}
+
+//===============================================================
+// SlashNoDefault
+
+// slash_no_default:
+//     | param_no_default+ '/' ',' 
+//     | param_no_default+ '/' &')' 
+SlashNoDefault::SlashNoDefault(Tokenizer *tokenizer, string indent) {
+    log(__FUNCTION__, DEBUG); add_indent(2);
+    this->tokenizer = tokenizer;
+    this->indent = indent;
+    parse();
+    sub_indent(2);
+    log(__FUNCTION__ + (string)" - children.size() == " + to_string(children.size()), DEBUG);
+}
+SlashNoDefault::~SlashNoDefault() {
+    log(__FUNCTION__, DEBUG); add_indent(2);
+    for (AST* child : children) delete child;
+    children.clear();
+    sub_indent(2);
+}
+void SlashNoDefault::parse() {
+    // push as many param_no_default's as possible, if any are a with_default, return 0 children
+    while(peek("SlashNoDefault").value != "=" 
+            && peek("SlashNoDefault").value != "/" && peek("SlashNoDefault").value != ")") {
+        children.push_back(new ParamNoDefault(tokenizer, indent));
+    }
+    if (peek("SlashNoDefault").value == "=") {
+        // should have been a SlashWithDefault
+        children.clear();
+    sub_indent(2);
+        return;
+    }
+    eat_value("/", "SlashNoDefault");
+    if (peek("SlashNoDefault").value == ",") {
+        eat_value(",", "SlashNoDefault");
+    }
+    else if (peek("SlashNoDefault").value != ")") {
+        throw runtime_error("SyntaxError: invalid syntax");
+    }
+}
+PyObject SlashNoDefault::evaluate(Stack stack) {
+    log("SlashNoDefault::evaluate()", DEBUG); add_indent(2);
+    
+    sub_indent(2);
+    return PyObject();
+}
+ostream& SlashNoDefault::print(ostream& os) const {
+    os << *children.at(0);
+    return os;
+}
+
+//===============================================================
+// SlashWithDefault
+
+// slash_with_default:
+//     | param_no_default* param_with_default+ '/' ',' 
+//     | param_no_default* param_with_default+ '/' &')'
+SlashWithDefault::SlashWithDefault(Tokenizer *tokenizer, string indent) {
+    log(__FUNCTION__, DEBUG); add_indent(2);
+    this->tokenizer = tokenizer;
+    this->indent = indent;
+    parse();
+    sub_indent(2);
+    log(__FUNCTION__ + (string)" - children.size() == " + to_string(children.size()), DEBUG);
+}
+SlashWithDefault::~SlashWithDefault() {
+    log(__FUNCTION__, DEBUG); add_indent(2);
+    for (AST* child : children) delete child;
+    children.clear();
+    sub_indent(2);
+}
+void SlashWithDefault::parse() {
+    ParamNoDefault* pnd;
+    while (1) {
+        pnd = new ParamNoDefault(tokenizer, indent);
+        if (pnd->children.size() == 0) {
+            delete pnd;
+            break;
+        }
+        else { children.push_back(pnd); }
+    }
+    while (peek("SlashWithDefault").value != "/" && peek("SlashWithDefault").value != ")") {
+        children.push_back(new ParamWithDefault(tokenizer, indent));
+    }
+    eat_value("/", "SlashWithDefault");
+    if (peek("SlashWithDefault").value == ",") {
+        eat_value(",", "SlashWithDefault");
+    }
+    else if (peek("SlashWithDefault").value != ")") {
+        throw runtime_error("SyntaxError: invalid syntax");
+    }
+}
+PyObject SlashWithDefault::evaluate(Stack stack) {
+    log("SlashWithDefault::evaluate()", DEBUG); add_indent(2);
+    
+    sub_indent(2);
+    return PyObject();
+}
+ostream& SlashWithDefault::print(ostream& os) const {
+    os << *children.at(0);
+    return os;
+}
+
+//===============================================================
+// StarEtc
+
+// star_etc:
+//     | '*' param_no_default param_maybe_default* [kwds] 
+//     | '*' ',' param_maybe_default+ [kwds] 
+//     | kwds
+StarEtc::StarEtc(Tokenizer *tokenizer, string indent) {
+    log(__FUNCTION__, DEBUG); add_indent(2);
+    this->tokenizer = tokenizer;
+    this->indent = indent;
+    parse();
+    sub_indent(2);
+    log(__FUNCTION__ + (string)" - children.size() == " + to_string(children.size()), DEBUG);
+}
+StarEtc::~StarEtc() {
+    log(__FUNCTION__, DEBUG); add_indent(2);
+    for (AST* child : children) delete child;
+    children.clear();
+    sub_indent(2);
+}
+void StarEtc::parse() {
+    if (peek("StarEtc").value == "*") {
+        eat_value("*", "StarEtc");
+        if (peek("StarEtc").value == ",") {
+            // '*' ',' param_maybe_default+ [kwds] 
+            eat_value(",", "StarEtc");
+            children.push_back(new ParamMaybeDefault(tokenizer, indent));
+        }
+        else {
+            // '*' param_no_default param_maybe_default* [kwds] 
+            children.push_back(new ParamNoDefault(tokenizer, indent));
+            while(peek("StarEtc").value != "**" && peek("StarEtc").value != ")") {
+                children.push_back(new ParamMaybeDefault(tokenizer, indent));
+            }
+        }
+    }
+    // all productions have a potential kwds at the end
+    if (peek("StarEtc").value == "**") {
+        children.push_back(new Kwds(tokenizer, indent));
+    }
+    if (children.size() == 0) {
+        throw runtime_error("Reached end of StarEtc with no children");
+    }
+}
+PyObject StarEtc::evaluate(Stack stack) {
+    log("StarEtc::evaluate()", DEBUG); add_indent(2);
+    vector<PyObject> results;
+    for (AST *child : children) {
+        results.push_back(child->evaluate(stack));
+    }
+    sub_indent(2);
+    return PyObject(results, "tuple");
+}
+ostream& StarEtc::print(ostream& os) const {
+    os << *children.at(0);
+    return os;
+}
+
+//===============================================================
+// Kwds
+
+// kwds: '**' param_no_default
+Kwds::Kwds(Tokenizer *tokenizer, string indent) {
+    log(__FUNCTION__, DEBUG); add_indent(2);
+    this->tokenizer = tokenizer;
+    this->indent = indent;
+    parse();
+    sub_indent(2);
+    log(__FUNCTION__ + (string)" - children.size() == " + to_string(children.size()), DEBUG);
+}
+Kwds::~Kwds() {
+    log(__FUNCTION__, DEBUG); add_indent(2);
+    for (AST* child : children) delete child;
+    children.clear();
+    sub_indent(2);
+}
+void Kwds::parse() {
+    eat_value("**", "Kwds");
+    children.push_back(new ParamNoDefault(tokenizer, indent));
+}
+PyObject Kwds::evaluate(Stack stack) {
+    log("Kwds::evaluate()", DEBUG); add_indent(2);
+    PyObject ret = children.at(0)->evaluate(stack);
+    sub_indent(2);
+    return ret;
+}
+ostream& Kwds::print(ostream& os) const {
+    os << *children.at(0);
+    return os;
+}
+
+//===============================================================
+// ParamNoDefault
+
+// param_no_default:
+//     | param ',' TYPE_COMMENT? 
+//     | param TYPE_COMMENT? &')'
+ParamNoDefault::ParamNoDefault(Tokenizer *tokenizer, string indent) {
+    log(__FUNCTION__, DEBUG); add_indent(2);
+    this->tokenizer = tokenizer;
+    this->indent = indent;
+    parse();
+    sub_indent(2);
+    log(__FUNCTION__ + (string)" - children.size() == " + to_string(children.size()), DEBUG);
+}
+ParamNoDefault::~ParamNoDefault() {
+    log(__FUNCTION__, DEBUG); add_indent(2);
+    for (AST* child : children) delete child;
+    children.clear();
+    sub_indent(2);
+}
+void ParamNoDefault::parse() {
+    children.push_back(new Param(tokenizer, indent));
+    if (peek("ParamNoDefault").value == "=") {
+        // this actually should have been a with_default,
+        // signal by returning w/ 0 children
+        children.pop_back();
+        return;
+    }
+    if (peek("ParamNoDefault").value == ",") {
+        eat_value(",", "ParamNoDefault");
+    }
+    else if (peek("ParamNoDefault").value != ")") {
+        throw runtime_error("SyntaxError: invalid syntax");
+    }
+}
+PyObject ParamNoDefault::evaluate(Stack stack) {
+    log("ParamNoDefault::evaluate()", DEBUG); add_indent(2);
+    PyObject ret = children.at(0)->evaluate(stack);
+    sub_indent(2);
+    return ret;
+}
+ostream& ParamNoDefault::print(ostream& os) const {
+    os << *children.at(0);
+    return os;
+}
+
+//===============================================================
+// ParamWithDefault
+
+// param_with_default:
+//     | param default ',' TYPE_COMMENT? 
+//     | param default TYPE_COMMENT? &')' 
+ParamWithDefault::ParamWithDefault(Tokenizer *tokenizer, string indent) {
+    log(__FUNCTION__, DEBUG); add_indent(2);
+    this->tokenizer = tokenizer;
+    this->indent = indent;
+    parse();
+    sub_indent(2);
+    log(__FUNCTION__ + (string)" - children.size() == " + to_string(children.size()), DEBUG);
+}
+ParamWithDefault::~ParamWithDefault() {
+    log(__FUNCTION__, DEBUG); add_indent(2);
+    for (AST* child : children) delete child;
+    children.clear();
+    sub_indent(2);
+}
+void ParamWithDefault::parse() {
+    children.push_back(new Param(tokenizer, indent));
+    children.push_back(new Default(tokenizer, indent));
+    if (peek("ParamNoDefault").value == ",") {
+        eat_value(",", "ParamNoDefault");
+    }
+    else if (peek("ParamNoDefault").value != ")") {
+        throw runtime_error("SyntaxError: invalid syntax");
+    }
+}
+PyObject ParamWithDefault::evaluate(Stack stack) {
+    log("ParamWithDefault::evaluate()", DEBUG); add_indent(2);
+    
+    sub_indent(2);
+    return PyObject();
+}
+ostream& ParamWithDefault::print(ostream& os) const {
+    os << *children.at(0);
+    return os;
+}
+
+//===============================================================
+// ParamMaybeDefault
+
+// param_maybe_default:
+//     | param default? ',' TYPE_COMMENT? 
+//     | param default? TYPE_COMMENT? &')'
+ParamMaybeDefault::ParamMaybeDefault(Tokenizer *tokenizer, string indent) {
+    log(__FUNCTION__, DEBUG); add_indent(2);
+    this->tokenizer = tokenizer;
+    this->indent = indent;
+    parse();
+    sub_indent(2);
+    log(__FUNCTION__ + (string)" - children.size() == " + to_string(children.size()), DEBUG);
+}
+ParamMaybeDefault::~ParamMaybeDefault() {
+    log(__FUNCTION__, DEBUG); add_indent(2);
+    for (AST* child : children) delete child;
+    children.clear();
+    sub_indent(2);
+}
+void ParamMaybeDefault::parse() {
+    children.push_back(new Param(tokenizer, indent));
+    Default* d = new Default(tokenizer, indent);
+    if (d->children.size() == 0) {
+        delete d;
+    }
+    else {
+        children.push_back(d);
+    }
+    if (peek("ParamMaybeDefault").value == ",") {
+        eat_value(",", "ParamMaybeDefault");
+    }
+    else if (peek("ParamMaybeDefault").value != ")") {
+        throw runtime_error("SyntaxError: invalid syntax");
+    }
+}
+PyObject ParamMaybeDefault::evaluate(Stack stack) {
+    log("ParamMaybeDefault::evaluate()", DEBUG); add_indent(2);
+    
+    sub_indent(2);
+    return PyObject();
+}
+ostream& ParamMaybeDefault::print(ostream& os) const {
+    os << *children.at(0);
+    return os;
+}
+
+//===============================================================
+// Param
+
+// param: NAME annotation?
+Param::Param(Tokenizer *tokenizer, string indent) {
+    log(__FUNCTION__, DEBUG); add_indent(2);
+    this->tokenizer = tokenizer;
+    this->indent = indent;
+    parse();
+    sub_indent(2);
+    log(__FUNCTION__ + (string)" - children.size() == " + to_string(children.size()), DEBUG);
+}
+Param::~Param() {
+    log(__FUNCTION__, DEBUG); add_indent(2);
+    for (AST* child : children) delete child;
+    children.clear();
+    sub_indent(2);
+}
+void Param::parse() {
+    children.push_back(new Name(tokenizer, indent));
+}
+PyObject Param::evaluate(Stack stack) {
+    log("Param::evaluate()", DEBUG); add_indent(2);
+    
+    sub_indent(2);
+    return PyObject();
+}
+ostream& Param::print(ostream& os) const {
+    os << *children.at(0);
+    return os;
+}
+
+//===============================================================
+// Default
+
+// default: '=' expression
+Default::Default(Tokenizer *tokenizer, string indent) {
+    log(__FUNCTION__, DEBUG); add_indent(2);
+    this->tokenizer = tokenizer;
+    this->indent = indent;
+    parse();
+    sub_indent(2);
+    log(__FUNCTION__ + (string)" - children.size() == " + to_string(children.size()), DEBUG);
+}
+Default::~Default() {
+    log(__FUNCTION__, DEBUG); add_indent(2);
+    for (AST* child : children) delete child;
+    children.clear();
+    sub_indent(2);
+}
+void Default::parse() {
+    if (peek("Default").value == "=") {
+        eat_value("=", "Default");
+        children.push_back(new Expression(tokenizer, indent));
+    }
+    // NOTE: if 0 children case is for maybe_default productions
+}
+PyObject Default::evaluate(Stack stack) {
+    log("Default::evaluate()", DEBUG); add_indent(2);
+    return children.at(0)->evaluate(stack);
+    sub_indent(2);
+    return PyObject();
+}
+ostream& Default::print(ostream& os) const {
+    os << *children.at(0);
+    return os;
+}
 
 //===============================================================
 // Block
@@ -944,6 +1593,12 @@ Block::Block(Tokenizer *tokenizer, string indent) {
     parse();
     sub_indent(2);
     log(__FUNCTION__ + (string)" - children.size() == " + to_string(children.size()), DEBUG);
+}
+Block::~Block() {
+    log(__FUNCTION__, DEBUG); add_indent(2);
+    for (AST* child : children) delete child;
+    children.clear();
+    sub_indent(2);
 }
 void Block::parse() {
     // the NEWLINE can be optional, for instance one liner function like
@@ -1007,6 +1662,12 @@ StarExpressions::StarExpressions(Tokenizer *tokenizer, string indent) {
     sub_indent(2);
     log(__FUNCTION__ + (string)" - children.size() == " + to_string(children.size()), DEBUG);
 }
+StarExpressions::~StarExpressions() {
+    log(__FUNCTION__, DEBUG); add_indent(2);
+    for (AST* child : children) delete child;
+    children.clear();
+    sub_indent(2);
+}
 void StarExpressions::parse() {
     children.push_back(new StarExpression(tokenizer, indent));
     while(peek("StarExpressions").value == ",") {
@@ -1048,9 +1709,15 @@ StarExpression::StarExpression(Tokenizer *tokenizer, string indent) {
     sub_indent(2);
     log(__FUNCTION__ + (string)" - children.size() == " + to_string(children.size()), DEBUG);
 }
+StarExpression::~StarExpression() {
+    log(__FUNCTION__, DEBUG); add_indent(2);
+    for (AST* child : children) delete child;
+    children.clear();
+    sub_indent(2);
+}
 void StarExpression::parse() {
     if (peek("StarExpression").value == "*") {
-        children.push_back(new _String(tokenizer, indent));
+        children.push_back(new Op(tokenizer, indent));
         children.push_back(new BitwiseOr(tokenizer, indent));
     }
     else {
@@ -1082,6 +1749,12 @@ StarNamedExpressions::StarNamedExpressions(Tokenizer *tokenizer, string indent) 
     parse();
     sub_indent(2);
     log(__FUNCTION__ + (string)" - children.size() == " + to_string(children.size()), DEBUG);
+}
+StarNamedExpressions::~StarNamedExpressions() {
+    log(__FUNCTION__, DEBUG); add_indent(2);
+    for (AST* child : children) delete child;
+    children.clear();
+    sub_indent(2);
 }
 void StarNamedExpressions::parse() {
     children.push_back(new StarNamedExpression(tokenizer, indent));
@@ -1121,10 +1794,16 @@ StarNamedExpression::StarNamedExpression(Tokenizer *tokenizer, string indent) {
     sub_indent(2);
     log(__FUNCTION__ + (string)" - children.size() == " + to_string(children.size()), DEBUG);
 }
+StarNamedExpression::~StarNamedExpression() {
+    log(__FUNCTION__, DEBUG); add_indent(2);
+    for (AST* child : children) delete child;
+    children.clear();
+    sub_indent(2);
+}
 void StarNamedExpression::parse() {
     log("StarNamedExpression::evaluate()", DEBUG); add_indent(2);
     if (peek("StarNamedExpression").value == "*") {
-        children.push_back(new _String(tokenizer, indent));
+        children.push_back(new Op(tokenizer, indent));
         children.push_back(new BitwiseOr(tokenizer, indent));
     }
     else {
@@ -1158,6 +1837,12 @@ NamedExpression::NamedExpression(Tokenizer *tokenizer, string indent) {
     sub_indent(2);
     log(__FUNCTION__ + (string)" - children.size() == " + to_string(children.size()), DEBUG);
 }
+NamedExpression::~NamedExpression() {
+    log(__FUNCTION__, DEBUG); add_indent(2);
+    for (AST* child : children) delete child;
+    children.clear();
+    sub_indent(2);
+}
 void NamedExpression::parse() {
     // TODO: handle ':=' case
     children.push_back(new Expression(tokenizer, indent));
@@ -1177,6 +1862,7 @@ ostream& NamedExpression::print(ostream& os) const {
 
 //===============================================================
 // Expressions
+
 // NOTE: falls back to tuples
 // >>> 2+2,1-1
 // (4, 0)
@@ -1194,6 +1880,12 @@ Expressions::Expressions(Tokenizer *tokenizer, string indent) {
     parse();
     sub_indent(2);
     log(__FUNCTION__ + (string)" - children.size() == " + to_string(children.size()), DEBUG);
+}
+Expressions::~Expressions() {
+    log(__FUNCTION__, DEBUG); add_indent(2);
+    for (AST* child : children) delete child;
+    children.clear();
+    sub_indent(2);
 }
 void Expressions::parse() {
     children.push_back(new Expression(tokenizer, indent));
@@ -1237,6 +1929,12 @@ Expression::Expression(Tokenizer *tokenizer, string indent) {
     sub_indent(2);
     log(__FUNCTION__ + (string)" - children.size() == " + to_string(children.size()), DEBUG);
 }
+Expression::~Expression() {
+    log(__FUNCTION__, DEBUG); add_indent(2);
+    for (AST* child : children) delete child;
+    children.clear();
+    sub_indent(2);
+}
 void Expression::parse() {
     // NOTE: skipping lambdef
     if (lookahead(1).value == "if") {
@@ -1274,6 +1972,12 @@ Disjunction::Disjunction(Tokenizer *tokenizer, string indent) {
     parse();
     sub_indent(2);
     log(__FUNCTION__ + (string)" - children.size() == " + to_string(children.size()), DEBUG);
+}
+Disjunction::~Disjunction() {
+    log(__FUNCTION__, DEBUG); add_indent(2);
+    for (AST* child : children) delete child;
+    children.clear();
+    sub_indent(2);
 }
 void Disjunction::parse() {
     children.push_back(new Conjunction(tokenizer, indent));
@@ -1319,6 +2023,12 @@ Conjunction::Conjunction(Tokenizer *tokenizer, string indent) {
     sub_indent(2);
     log(__FUNCTION__ + (string)" - children.size() == " + to_string(children.size()), DEBUG);
 }
+Conjunction::~Conjunction() {
+    log(__FUNCTION__, DEBUG); add_indent(2);
+    for (AST* child : children) delete child;
+    children.clear();
+    sub_indent(2);
+}
 void Conjunction::parse() {
     children.push_back(new Inversion(tokenizer, indent));
     while(peek("Conjunction").value == "and") {
@@ -1363,9 +2073,15 @@ Inversion::Inversion(Tokenizer *tokenizer, string indent) {
     sub_indent(2);
     log(__FUNCTION__ + (string)" - children.size() == " + to_string(children.size()), DEBUG);
 }
+Inversion::~Inversion() {
+    log(__FUNCTION__, DEBUG); add_indent(2);
+    for (AST* child : children) delete child;
+    children.clear();
+    sub_indent(2);
+}
 void Inversion::parse() {
     if (peek("Inversion").value == "not") {
-        children.push_back(new _String(tokenizer, indent));
+        children.push_back(new Op(tokenizer, indent));
     }
     children.push_back(new Comparison(tokenizer, indent));
 }
@@ -1411,6 +2127,12 @@ Comparison::Comparison(Tokenizer *tokenizer, string indent) {
     parse();
     sub_indent(2);
     log(__FUNCTION__ + (string)" - children.size() == " + to_string(children.size()), DEBUG);
+}
+Comparison::~Comparison() {
+    log(__FUNCTION__, DEBUG); add_indent(2);
+    for (AST* child : children) delete child;
+    children.clear();
+    sub_indent(2);
 }
 void Comparison::parse() {
     children.push_back(new BitwiseOr(tokenizer, indent));
@@ -1460,6 +2182,12 @@ BitwiseOr::BitwiseOr(Tokenizer *tokenizer, string indent) {
     sub_indent(2);
     log(__FUNCTION__ + (string)" - children.size() == " + to_string(children.size()), DEBUG);
 }
+BitwiseOr::~BitwiseOr() {
+    log(__FUNCTION__, DEBUG); add_indent(2);
+    for (AST* child : children) delete child;
+    children.clear();
+    sub_indent(2);
+}
 void BitwiseOr::parse() {
     children.push_back(new BitwiseXor(tokenizer, indent));
     while (peek("BitwiseOr").value == "|") {
@@ -1503,6 +2231,12 @@ BitwiseXor::BitwiseXor(Tokenizer *tokenizer, string indent) {
     parse();
     sub_indent(2);
     log(__FUNCTION__ + (string)" - children.size() == " + to_string(children.size()), DEBUG);
+}
+BitwiseXor::~BitwiseXor() {
+    log(__FUNCTION__, DEBUG); add_indent(2);
+    for (AST* child : children) delete child;
+    children.clear();
+    sub_indent(2);
 }
 void BitwiseXor::parse() {
     children.push_back(new BitwiseAnd(tokenizer, indent));
@@ -1548,6 +2282,12 @@ BitwiseAnd::BitwiseAnd(Tokenizer *tokenizer, string indent) {
     sub_indent(2);
     log(__FUNCTION__ + (string)" - children.size() == " + to_string(children.size()), DEBUG);
 }
+BitwiseAnd::~BitwiseAnd() {
+    log(__FUNCTION__, DEBUG); add_indent(2);
+    for (AST* child : children) delete child;
+    children.clear();
+    sub_indent(2);
+}
 void BitwiseAnd::parse() {
     children.push_back(new ShiftExpr(tokenizer, indent));
     while (peek("BitwiseAnd").value == "&") {
@@ -1592,6 +2332,12 @@ ShiftExpr::ShiftExpr(Tokenizer *tokenizer, string indent) {
     parse();
     sub_indent(2);
     log(__FUNCTION__ + (string)" - children.size() == " + to_string(children.size()), DEBUG);
+}
+ShiftExpr::~ShiftExpr() {
+    log(__FUNCTION__, DEBUG); add_indent(2);
+    for (AST* child : children) delete child;
+    children.clear();
+    sub_indent(2);
 }
 void ShiftExpr::parse() {
     children.push_back(new Sum(tokenizer, indent));
@@ -1641,6 +2387,12 @@ Sum::Sum(Tokenizer *tokenizer, string indent) {
     parse();
     sub_indent(2);
     log(__FUNCTION__ + (string)" - children.size() == " + to_string(children.size()), DEBUG);
+}
+Sum::~Sum() {
+    log(__FUNCTION__, DEBUG); add_indent(2);
+    for (AST* child : children) delete child;
+    children.clear();
+    sub_indent(2);
 }
 void Sum::parse() {
     children.push_back(new Term(tokenizer, indent));
@@ -1694,6 +2446,12 @@ Term::Term(Tokenizer *tokenizer, string indent) {
     sub_indent(2);
     log(__FUNCTION__ + (string)" - children.size() == " + to_string(children.size()), DEBUG);
 }
+Term::~Term() {
+    log(__FUNCTION__, DEBUG); add_indent(2);
+    for (AST* child : children) delete child;
+    children.clear();
+    sub_indent(2);
+}
 void Term::parse() {
     children.push_back(new Factor(tokenizer, indent));
     while(is_term_op(peek("Term").value)) {
@@ -1743,6 +2501,12 @@ Factor::Factor(Tokenizer *tokenizer, string indent) {
     parse();
     sub_indent(2);
     log(__FUNCTION__ + (string)" - children.size() == " + to_string(children.size()), DEBUG);
+}
+Factor::~Factor() {
+    log(__FUNCTION__, DEBUG); add_indent(2);
+    for (AST* child : children) delete child;
+    children.clear();
+    sub_indent(2);
 }
 void Factor::parse() {
     if (is_factor_op(peek("Factor").value)) {
@@ -1804,6 +2568,12 @@ Power::Power(Tokenizer *tokenizer, string indent) {
     sub_indent(2);
     log(__FUNCTION__ + (string)" - children.size() == " + to_string(children.size()), DEBUG);
 }
+Power::~Power() {
+    log(__FUNCTION__, DEBUG); add_indent(2);
+    for (AST* child : children) delete child;
+    children.clear();
+    sub_indent(2);
+}
 void Power::parse() {
     children.push_back(new AwaitPrimary(tokenizer, indent));
     if (peek("Power").value == "**") {
@@ -1844,6 +2614,12 @@ AwaitPrimary::AwaitPrimary(Tokenizer *tokenizer, string indent) {
     sub_indent(2);
     log(__FUNCTION__ + (string)" - children.size() == " + to_string(children.size()), DEBUG);
 }
+AwaitPrimary::~AwaitPrimary() {
+    log(__FUNCTION__, DEBUG); add_indent(2);
+    for (AST* child : children) delete child;
+    children.clear();
+    sub_indent(2);
+}
 void AwaitPrimary::parse() {
     // TODO: implement this completely
     children.push_back(new Primary(tokenizer, indent));
@@ -1879,6 +2655,12 @@ Primary::Primary(Tokenizer *tokenizer, string indent) {
     sub_indent(2);
     log(__FUNCTION__ + (string)" - children.size() == " + to_string(children.size()), DEBUG);
 }
+Primary::~Primary() {
+    log(__FUNCTION__, DEBUG); add_indent(2);
+    for (AST* child : children) delete child;
+    children.clear();
+    sub_indent(2);
+}
 void Primary::parse() {
     // NOTE: this is supposed to be a left recusive production
     // im keeping it simple atm but its likely that a while loop will
@@ -1888,9 +2670,9 @@ void Primary::parse() {
         // TODO: implement
         throw runtime_error("Primary: '.' not implemented");
     } else if(peek("Primary").value == "(") {
-        children.push_back(new _String(tokenizer, indent));  // (
+        children.push_back(new Op(tokenizer, indent));  // (
         children.push_back(new Arguments(tokenizer, indent));
-        children.push_back(new _String(tokenizer, indent));  // )
+        children.push_back(new Op(tokenizer, indent));  // )
     }
 }
 PyObject Primary::evaluate(Stack stack) {
@@ -1904,9 +2686,9 @@ PyObject Primary::evaluate(Stack stack) {
     else {
         PyObject c1 = children.at(1)->evaluate(stack);
         if ((string)c1 == "(") {
-            PyObject func = children.at(0)->evaluate(stack);
-            PyObject args = children.at(2)->evaluate(stack);
-            PyObject ret = stack.call_function(func, args);
+            PyObject func_name = children.at(0)->evaluate(stack);
+            children.at(2)->evaluate(stack);  // eval the args
+            PyObject ret = stack.call_function(func_name);
             sub_indent(2);
             return ret;
         }
@@ -1927,7 +2709,18 @@ ostream& Primary::print(ostream& os) const {
 //     | slice !',' 
 //     | ','.slice+ [','] 
 Slices::Slices(Tokenizer *tokenizer, string indent) {
-
+    log(__FUNCTION__, DEBUG); add_indent(2);
+    this->tokenizer = tokenizer;
+    this->indent = indent;
+    parse();
+    sub_indent(2);
+    log(__FUNCTION__ + (string)" - children.size() == " + to_string(children.size()), DEBUG);
+}
+Slices::~Slices() {
+    log(__FUNCTION__, DEBUG); add_indent(2);
+    for (AST* child : children) delete child;
+    children.clear();
+    sub_indent(2);
 }
 void Slices::parse() {
 
@@ -1936,9 +2729,7 @@ PyObject Slices::evaluate(Stack stack) {
     throw runtime_error("Slices::evaluate() not implemented");
 }
 ostream& Slices::print(ostream& os) const {
-    for (AST *child : children) {
-        os << *child;
-    }
+
     return os;
 }
 
@@ -1949,7 +2740,18 @@ ostream& Slices::print(ostream& os) const {
 //     | [expression] ':' [expression] [':' [expression] ] 
 //     | expression 
 Slice::Slice(Tokenizer *tokenizer, string indent) {
-
+    log(__FUNCTION__, DEBUG); add_indent(2);
+    this->tokenizer = tokenizer;
+    this->indent = indent;
+    parse();
+    sub_indent(2);
+    log(__FUNCTION__ + (string)" - children.size() == " + to_string(children.size()), DEBUG);
+}
+Slice::~Slice() {
+    log(__FUNCTION__, DEBUG); add_indent(2);
+    for (AST* child : children) delete child;
+    children.clear();
+    sub_indent(2);
 }
 void Slice::parse() {
 
@@ -1958,9 +2760,7 @@ PyObject Slice::evaluate(Stack stack) {
     throw runtime_error("Slice::evaluate() not implemented");
 }
 ostream& Slice::print(ostream& os) const {
-    for (AST *child : children) {
-        os << *child;
-    }
+
     return os;
 }
 
@@ -1987,12 +2787,18 @@ Atom::Atom(Tokenizer *tokenizer, string indent) {
     sub_indent(2);
     log(__FUNCTION__ + (string)" - children.size() == " + to_string(children.size()), DEBUG);
 }
+Atom::~Atom() {
+    log(__FUNCTION__, DEBUG); add_indent(2);
+    for (AST* child : children) delete child;
+    children.clear();
+    sub_indent(2);
+}
 void Atom::parse() {
     if (is_number(peek("Atom").value)) {
-        children.push_back(new Number(next_token()));
+        children.push_back(new Number(tokenizer, indent));
     } 
     else if (peek("Atom").value == "True" || peek("Atom").value == "False") {
-        children.push_back(new Bool(next_token()));
+        children.push_back(new Bool(tokenizer, indent));
     }
     else if (peek("Atom").value == "(") {
         // TODO: figure out a cleaner way to determine if this should be
@@ -2004,8 +2810,11 @@ void Atom::parse() {
         // a list or listcomp
         children.push_back(new List(tokenizer, indent));
     }
+    else if (peek("Atom").value == "\"") {
+        children.push_back(new _String(tokenizer, indent));
+    }
     else {
-        children.push_back(new _String(next_token()));
+        children.push_back(new Name(tokenizer, indent));
     }
 }
 PyObject Atom::evaluate(Stack stack) {
@@ -2034,6 +2843,12 @@ List::List(Tokenizer *tokenizer, string indent) {
     sub_indent(2);
     log(__FUNCTION__ + (string)" - children.size() == " + to_string(children.size()), DEBUG);
 }
+List::~List() {
+    log(__FUNCTION__, DEBUG); add_indent(2);
+    for (AST* child : children) delete child;
+    children.clear();
+    sub_indent(2);
+}
 void List::parse() {
     eat_value("[", "List");
     children.push_back(new StarNamedExpressions(tokenizer, indent));
@@ -2047,10 +2862,12 @@ PyObject List::evaluate(Stack stack) {
 }
 ostream& List::print(ostream& os) const {
     os << "[";
-    for (int i=0; i < children.size()-1; i++) {
-        os << *(children[i]) << ",";
+    if (children.size() > 0) {
+        for (int i=0; i < children.size()-1; i++) {
+            os << *(children.at(i)) << ",";
+        }
+        os << *children.back();
     }
-    os << *children.back();
     os << "]";
     return os;
 }
@@ -2073,6 +2890,12 @@ Tuple::Tuple(Tokenizer *tokenizer, string indent) {
     parse();
     sub_indent(2);
     log(__FUNCTION__ + (string)" - children.size() == " + to_string(children.size()), DEBUG);
+}
+Tuple::~Tuple() {
+    log(__FUNCTION__, DEBUG); add_indent(2);
+    for (AST* child : children) delete child;
+    children.clear();
+    sub_indent(2);
 }
 void Tuple::parse() {
     eat_value("(", "Tuple");
@@ -2101,10 +2924,12 @@ PyObject Tuple::evaluate(Stack stack) {
 }
 ostream& Tuple::print(ostream& os) const {
     os << "(";
-    for (int i=0; i < children.size()-1; i++) {
-        os << *(children[i]) << ",";
+    if (children.size() > 0) {
+        for (int i=0; i < children.size()-1; i++) {
+            os << *(children.at(i)) << ",";
+        }
+        os << *children.back();
     }
-    os << *children.back();
     os << ")";
     return os;
 }
@@ -2122,23 +2947,26 @@ Arguments::Arguments(Tokenizer *tokenizer, string indent) {
     sub_indent(2);
     log(__FUNCTION__ + (string)" - children.size() == " + to_string(children.size()), DEBUG);
 }
+Arguments::~Arguments() {
+    log(__FUNCTION__, DEBUG); add_indent(2);
+    for (AST* child : children) delete child;
+    children.clear();
+    sub_indent(2);
+}
 void Arguments::parse() {
+    children.push_back(new Args(tokenizer, indent));
+    if (peek("Arguments").value == ",") {
+        eat_value(",", "Arguments");
+    }
     if (peek("Arguments").value != ")") {
-        children.push_back(new Args(tokenizer, indent));
-        while (peek("Arguments").value == ",") {
-            eat_value(",", "Arguments");
-            children.push_back(new Args(tokenizer, indent));
-        }
+        throw runtime_error("SyntaxError: invalid syntax");
     }
 }
 PyObject Arguments::evaluate(Stack stack) {
     log("Arguments::evaluate()", DEBUG); add_indent(2);
-    vector<PyObject> results;
-    for (AST *child : children) {
-        results.push_back(child->evaluate(stack));
-    }
+    children.at(0)->evaluate(stack);
     sub_indent(2);
-    return PyObject(results, "list");
+    return PyObject();
 }
 ostream& Arguments::print(ostream& os) const {
     if (children.size() > 1) {
@@ -2154,6 +2982,8 @@ ostream& Arguments::print(ostream& os) const {
 //===============================================================
 // Args
 
+// NOTE: the negative lookahead ( !'=' ) is the indicator to swap to kwargs
+
 // args:
 //     | ','.(starred_expression | named_expression !'=')+ [',' kwargs ] 
 //     | kwargs 
@@ -2165,20 +2995,131 @@ Args::Args(Tokenizer *tokenizer, string indent) {
     sub_indent(2);
     log(__FUNCTION__ + (string)" - children.size() == " + to_string(children.size()), DEBUG);
 }
+Args::~Args() {
+    log(__FUNCTION__, DEBUG); add_indent(2);
+    for (AST* child : children) delete child;
+    children.clear();
+    sub_indent(2);
+}
 void Args::parse() {
-    //TODO: args are really complicated, im simplifying them for now
-    children.push_back(new Expression(tokenizer, indent));
+    StarredExpression* se;
+    NamedExpression* ne;
+    while (1) {
+        if (peek("Args").value == "*") {
+            se = new StarredExpression(tokenizer, indent);
+            if (peek("Args").value == "=") {
+                delete se;
+                break;
+            } 
+            else { children.push_back(se); }
+            if (peek("Args").value == ")") {
+                break;
+            }
+        }
+        else {
+            ne = new NamedExpression(tokenizer, indent);
+            if (peek("Args").value == "=") {
+                delete ne;
+                break;
+            } else { children.push_back(ne); }
+            if (peek("Args").value == ")") {
+                break;
+            }
+        }
+    }
+    if (peek("Args").value == ",") {
+        eat_value(",", "Args");
+    }
+    if (peek("Args").value != ")") {
+        children.push_back(new Kwargs(tokenizer, indent));
+    }
 }
 PyObject Args::evaluate(Stack stack) {
     log("Args::evaluate()", DEBUG); add_indent(2);
-    PyObject ret = children.at(0)->evaluate(stack);
+    for (AST* child : children) {
+        stack.push_arg(child->evaluate(stack));
+    }
     sub_indent(2);
-    return ret;
+    return PyObject();
 }
 ostream& Args::print(ostream& os) const {
     for (AST *child : children) {
         os << *child;
     }
+    return os;
+}
+
+//===============================================================
+// Kwargs
+
+// kwargs:
+//     | ','.kwarg_or_starred+ ',' ','.kwarg_or_double_starred+ 
+//     | ','.kwarg_or_starred+
+//     | ','.kwarg_or_double_starred+
+Kwargs::Kwargs(Tokenizer *tokenizer, string indent) {
+    log(__FUNCTION__, DEBUG); add_indent(2);
+    this->tokenizer = tokenizer;
+    this->indent = indent;
+    parse();
+    sub_indent(2);
+    log(__FUNCTION__ + (string)" - children.size() == " + to_string(children.size()), DEBUG);
+}
+Kwargs::~Kwargs() {
+    log(__FUNCTION__, DEBUG); add_indent(2);
+    for (AST* child : children) delete child;
+    children.clear();
+    sub_indent(2);
+}
+void Kwargs::parse() {
+
+}
+PyObject Kwargs::evaluate(Stack stack) {
+    log("Kwargs::evaluate()", DEBUG); add_indent(2);
+
+    sub_indent(2);
+    return PyObject();
+}
+ostream& Kwargs::print(ostream& os) const {
+    if (children.size() > 0) {
+        for (int i=0; i < children.size()-1; i++) {
+            os << *children.at(i) << ",";
+        }
+        os << *children.back();
+    }
+    return os;
+}
+
+//===============================================================
+// StarredExpression
+
+// starred_expression:
+//     | '*' expression
+StarredExpression::StarredExpression(Tokenizer *tokenizer, string indent) {
+    log(__FUNCTION__, DEBUG); add_indent(2);
+    this->tokenizer = tokenizer;
+    this->indent = indent;
+    parse();
+    sub_indent(2);
+    log(__FUNCTION__ + (string)" - children.size() == " + to_string(children.size()), DEBUG);
+}
+StarredExpression::~StarredExpression() {
+    log(__FUNCTION__, DEBUG); add_indent(2);
+    for (AST* child : children) delete child;
+    children.clear();
+    sub_indent(2);
+}
+void StarredExpression::parse() {
+    eat_value("*", "StarredExpression");
+    children.push_back(new Expression(tokenizer, indent));
+}
+PyObject StarredExpression::evaluate(Stack stack) {
+    log("StarredExpression::evaluate()", DEBUG); add_indent(2);
+    PyObject ret = children.at(0)->evaluate(stack);
+    sub_indent(2);
+    return PyObject();
+}
+ostream& StarredExpression::print(ostream& os) const {
+    os << "*" << *children.at(0);
     return os;
 }
 
@@ -2189,12 +3130,19 @@ Op::Op(Tokenizer *tokenizer, string indent) {
     log(__FUNCTION__, DEBUG);
     this->tokenizer = tokenizer;
     this->indent = indent;
-    token = next_token();
+    parse();
     log(__FUNCTION__ + (string)" - token.value == '" + token.value + "'", DEBUG);
 }
+Op::~Op() {
+    log(__FUNCTION__, DEBUG);
+    tokenizer->rewind(1);
+}
+void Op::parse() {
+    this->token = tokenizer->next_token();
+}
 PyObject Op::evaluate(Stack stack) {
-    log("Op::evaluate()", DEBUG);
-    return PyObject(token.value, "str");
+    log("Op::evaluate() - '" + this->token.value + "'", DEBUG);
+    return PyObject(this->token.value, "str");
 }
 ostream& Op::print(ostream& os) const {
     os << token.value;
@@ -2204,19 +3152,19 @@ ostream& Op::print(ostream& os) const {
 //===============================================================
 // String
 
-_String::_String(Token token) {
-    log(__FUNCTION__, DEBUG);
-    this->token = token;
-    parse();
-    log(__FUNCTION__ + (string)" - this->value == '" + this->value + "'", DEBUG);
-}
 _String::_String(Tokenizer *tokenizer, string indent) {
     log(__FUNCTION__, DEBUG);
-    this->token = tokenizer->next_token();
+    this->tokenizer = tokenizer;
+    this->indent = indent;
     parse();
     log(__FUNCTION__ + (string)" - this->value == '" + this->value + "'", DEBUG);
 }
+_String::~_String() {
+    log(__FUNCTION__, DEBUG);
+    tokenizer->rewind(1);
+}
 void _String::parse() {
+    this->token = tokenizer->next_token();
     if (token.value.size() > 0 && token.value.at(0) == '"') {
         this->value = token.value.substr(1, token.value.size()-2);
     } else {
@@ -2224,7 +3172,7 @@ void _String::parse() {
     }
 }
 PyObject _String::evaluate(Stack stack) {
-    log("_String::evaluate()", DEBUG);
+    log("_String::evaluate() - '" + this->value + "'", DEBUG);
     return PyObject(this->value, "str");
 }
 ostream& _String::print(ostream& os) const {
@@ -2233,25 +3181,52 @@ ostream& _String::print(ostream& os) const {
 }
 
 //===============================================================
+// Name
+
+Name::Name(Tokenizer *tokenizer, string indent) {
+    log(__FUNCTION__, DEBUG);
+    this->tokenizer = tokenizer;
+    this->indent = indent;
+    parse();
+    log(__FUNCTION__ + (string)" - this->value == '" + this->value + "'", DEBUG);
+}
+Name::~Name() {
+    log(__FUNCTION__, DEBUG);
+    tokenizer->rewind(1);
+}
+void Name::parse() {
+    this->token = tokenizer->next_token();
+    this->value = this->token.value;
+}
+PyObject Name::evaluate(Stack stack) {
+    log("Name::evaluate() - '" + this->value + "'", DEBUG);
+    return stack.get_value(this->value);
+}
+ostream& Name::print(ostream& os) const {
+    os << value;
+    return os;
+}
+
+//===============================================================
 // Number
 
-Number::Number(Token token) {
-    log(__FUNCTION__, DEBUG);
-    this->token = token;
-    parse();
-    log(__FUNCTION__ + (string)" - token.value == '" + token.value + "'", DEBUG);
-}
 Number::Number(Tokenizer *tokenizer, string indent) {
     log(__FUNCTION__, DEBUG);
-    this->token = tokenizer->next_token();
+    this->tokenizer = tokenizer;
+    this->indent = indent;
     parse();
     log(__FUNCTION__ + (string)" - token.value == '" + token.value + "'", DEBUG);
 }
+Number::~Number() {
+    log(__FUNCTION__, DEBUG);
+    tokenizer->rewind(1);
+}
 void Number::parse() {
+    this->token = tokenizer->next_token();
     this->is_int = this->token.value.find(".") == string::npos;
 }
 PyObject Number::evaluate(Stack stack) {
-    log("Number::evaluate()", DEBUG);
+    log("Number::evaluate() - " + token.value , DEBUG);
     if (this->is_int) {
         return PyObject(stoi(token.value), "int");
     }
@@ -2265,23 +3240,23 @@ ostream& Number::print(ostream& os) const {
 //===============================================================
 // Bool
 
-Bool::Bool(Token token) {
-    log(__FUNCTION__, DEBUG);
-    this->token = token;
-    parse();
-    log(__FUNCTION__ + (string)" - token.value == '" + token.value + "'", DEBUG);
-}
 Bool::Bool(Tokenizer *tokenizer, string indent) {
     log(__FUNCTION__, DEBUG);
-    this->token = token;
+    this->tokenizer = tokenizer;
+    this->indent = indent;
     parse();
     log(__FUNCTION__ + (string)" - token.value == '" + token.value + "'", DEBUG);
 }
+Bool::~Bool() {
+    log(__FUNCTION__, DEBUG);
+    tokenizer->rewind(1);
+}
 void Bool::parse() {
-    this->bool_value = token.value == "True";
+    this->token = tokenizer->next_token();
+    this->bool_value = this->token.value == "True";
 }
 PyObject Bool::evaluate(Stack stack) {
-    log("Bool::evaluate()", DEBUG);
+    log("Bool::evaluate() - " + this->bool_value, DEBUG);
     PyObject res = PyObject(this->bool_value, "bool");
     return res;
 }

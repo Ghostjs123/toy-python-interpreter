@@ -12,8 +12,8 @@ class Tokenizer {
 		vector<Token> tokens;
 		int length, pos;
 
-		const string delimiters = "\"'&|;:,.()+-=*/%[]#<>";
-		const string delimiters_not_string = "&|;:,.()+-=*/%[]#<>";
+		const string delimiters = "\"'&|;:,.()+-=*/%[]#<>*";
+		const string delimiters_not_string = "&|;:,.()+-=*/%[]#<>*";
 		const string special_delimiters = "=.+-*/";  // 2+ char op's
 
 		// tokenize helpers
@@ -49,6 +49,7 @@ class Tokenizer {
 		Token peek();
 		Token lookahead(int amt);
 		void compound(int amt, string sep="");
+		void rewind(int amt);
 };
 
 #endif

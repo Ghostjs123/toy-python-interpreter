@@ -122,6 +122,9 @@ bool Tokenizer::should_append_op(char c1, char c2, char c3) {
     else if (c1 == '.') {
         if (c2 == '.' && c3 == '.') return true;  // ..
     }
+    else if (c1 == '*') {
+        if (c2 == '*') return true;  // **
+    }
     return false;
 }
 
@@ -153,6 +156,7 @@ bool Tokenizer::tokenize_default(int ln, int& prev, int i) {
             return false;
         }
     }
+
     temp_s = sub(input[ln], prev, i);
     if (ltrim(temp_s) == "") return true;  // sometimes whitespace slips through here
     
@@ -174,10 +178,11 @@ bool Tokenizer::tokenize_default(int ln, int& prev, int i) {
         while (temp_i < input[ln].size() && input[ln][temp_i] == ' ') {
             temp_i++;
         }
-        if (is_delim_not_space(input[ln][temp_i])) {
-            temp_i--;
-        }
         prev = temp_i;
+    }
+    
+    while (is_delim_not_string(input[ln][prev])) {
+        if (tokenize_default(ln, prev, prev+1)) break;
     }
     return false;
 }
@@ -341,8 +346,8 @@ void Tokenizer::eof(int ln, int prev, vector<int> indents) {
     // check if there is one more token that needs pushed
     // if (prev < input[ln-1].size()-1) {
     if (prev < input[ln-1].size()-1 && tokens.back().type != "NEWLINE" && tokens.back().type != "NL") {
-        if (DEBUG_TOK) cout << "pushed in eof: '" << sub(input[ln-1], prev, input[ln-1].size()-1) << "'" << endl;
-        string temp_s = sub(input[ln-1], prev, input[ln-1].size()-1);
+        if (DEBUG_TOK) cout << "pushed in eof: '" << sub(input[ln-1], prev, input[ln-1].size()) << "'" << endl;
+        string temp_s = sub(input[ln-1], prev, input[ln-1].size());
         tokens.push_back(
             Token(get_type(temp_s), temp_s, {ln, prev}, {ln, input[ln].size()}));
     }
@@ -448,9 +453,6 @@ void Tokenizer::tokenize() {
                 else {
                     // normal delimiter
                     tokenize_default(ln, prev, i);
-                    while (is_delim_not_string(input[ln][prev])) {
-                        if (tokenize_default(ln, prev, prev+1)) break;
-                    }
                 }
             }
         }
@@ -500,6 +502,13 @@ int Tokenizer::size() {
 void Tokenizer::print() {
     for (Token t : this->tokens) {
         cout << t << endl;
+    }
+}
+
+void Tokenizer::log() {
+    Logger* logger = Logger::get_instance();
+    for (Token t : this->tokens) {
+        logger->log((string)t, DEBUG);
     }
 }
 
@@ -555,11 +564,11 @@ void Tokenizer::compound(int amt, string sep) {
     }
 }
 
-void Tokenizer::log() {
-    Logger* logger = Logger::get_instance();
-    for (Token t : this->tokens) {
-        logger->log((string)t, DEBUG);
+void Tokenizer::rewind(int amt) {
+    if (this->pos - amt < 0) {
+        throw runtime_error("Cannot rewind " + to_string(amt) + " with pos " + to_string(pos));
     }
+    this->pos -= amt;
 }
 
 //===============================================================
