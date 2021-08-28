@@ -1041,7 +1041,7 @@ PyObject FunctionDefRaw::evaluate(Stack stack) {
     return PyObject();
 }
 ostream& FunctionDefRaw::print(ostream& os) const {
-    os << "def " << name << "(" << params << "):" << *body;
+    os << "def " << name << "(" << *params << "):" << *body;
     return os;
 }
 
@@ -1178,7 +1178,7 @@ PyObject Parameters::evaluate(Stack stack) {
     return PyObject(results, "tuple");
 }
 ostream& Parameters::print(ostream& os) const {
-    os << *children.at(0);
+    for (AST* child : children) os << *child;
     return os;
 }
 
@@ -1398,25 +1398,32 @@ ParamNoDefault::~ParamNoDefault() {
     sub_indent(2);
 }
 void ParamNoDefault::parse() {
-    children.push_back(new Param(tokenizer, indent));
-    if (peek("ParamNoDefault").value == "=") {
-        // this actually should have been a with_default,
-        // signal by returning w/ 0 children
-        children.pop_back();
-        return;
-    }
-    if (peek("ParamNoDefault").value == ",") {
-        eat_value(",", "ParamNoDefault");
-    }
-    else if (peek("ParamNoDefault").value != ")") {
-        throw runtime_error("SyntaxError: invalid syntax");
+    if (peek("ParamNoDefault").value != ")") {
+        children.push_back(new Param(tokenizer, indent));
+        if (peek("ParamNoDefault").value == "=") {
+            // this actually should have been a with_default,
+            // signal by returning w/ 0 children
+            children.pop_back();
+            return;
+        }
+        if (peek("ParamNoDefault").value == ",") {
+            eat_value(",", "ParamNoDefault");
+        }
     }
 }
 PyObject ParamNoDefault::evaluate(Stack stack) {
     log("ParamNoDefault::evaluate()", DEBUG); add_indent(2);
-    PyObject ret = children.at(0)->evaluate(stack);
+    PyObject param_name = children.at(0)->evaluate(stack);
+    PyObject arg = stack.next_param();
+
+    // if (get<0>(arg) != PyObject() && get<0>(arg) != param_name) {
+    //     string func_name = stack.get_function_name();
+    //     throw runtime_error(
+    //         "TypeError: " + func_name + "() got an unexpected keyword argument '" 
+    //         + get<0>(arg).as_string() + "'");
+    // }
     sub_indent(2);
-    return ret;
+    return PyObject();
 }
 ostream& ParamNoDefault::print(ostream& os) const {
     os << *children.at(0);
@@ -1444,13 +1451,12 @@ ParamWithDefault::~ParamWithDefault() {
     sub_indent(2);
 }
 void ParamWithDefault::parse() {
-    children.push_back(new Param(tokenizer, indent));
-    children.push_back(new Default(tokenizer, indent));
-    if (peek("ParamNoDefault").value == ",") {
-        eat_value(",", "ParamNoDefault");
-    }
-    else if (peek("ParamNoDefault").value != ")") {
-        throw runtime_error("SyntaxError: invalid syntax");
+    if (peek("ParamNoDefault").value != ")") {
+        children.push_back(new Param(tokenizer, indent));
+        children.push_back(new Default(tokenizer, indent));
+        if (peek("ParamNoDefault").value == ",") {
+            eat_value(",", "ParamNoDefault");
+        }
     }
 }
 PyObject ParamWithDefault::evaluate(Stack stack) {
@@ -1485,19 +1491,18 @@ ParamMaybeDefault::~ParamMaybeDefault() {
     sub_indent(2);
 }
 void ParamMaybeDefault::parse() {
-    children.push_back(new Param(tokenizer, indent));
-    Default* d = new Default(tokenizer, indent);
-    if (d->children.size() == 0) {
-        delete d;
-    }
-    else {
-        children.push_back(d);
-    }
-    if (peek("ParamMaybeDefault").value == ",") {
-        eat_value(",", "ParamMaybeDefault");
-    }
-    else if (peek("ParamMaybeDefault").value != ")") {
-        throw runtime_error("SyntaxError: invalid syntax");
+    if (peek("ParamMaybeDefault").value != ")") {
+        children.push_back(new Param(tokenizer, indent));
+        Default* d = new Default(tokenizer, indent);
+        if (d->children.size() == 0) {
+            delete d;
+        }
+        else {
+            children.push_back(d);
+        }
+        if (peek("ParamMaybeDefault").value == ",") {
+            eat_value(",", "ParamMaybeDefault");
+        }
     }
 }
 PyObject ParamMaybeDefault::evaluate(Stack stack) {
@@ -1530,16 +1535,16 @@ Param::~Param() {
     sub_indent(2);
 }
 void Param::parse() {
-    children.push_back(new Name(tokenizer, indent));
+    this->name = new Name(tokenizer, indent);
 }
 PyObject Param::evaluate(Stack stack) {
-    log("Param::evaluate()", DEBUG); add_indent(2);
-    
-    sub_indent(2);
-    return PyObject();
+    log("Param::evaluate()", DEBUG);
+    // NOTE: calling evaluate on the Name* will call get_value()
+    // on the stack, I just want the actual name of the Param
+    return PyObject(this->name->token.value, "str");
 }
 ostream& Param::print(ostream& os) const {
-    os << *children.at(0);
+    os << this->name->token.value;
     return os;
 }
 
@@ -2688,8 +2693,8 @@ PyObject Primary::evaluate(Stack stack) {
         PyObject c1 = children.at(1)->evaluate(stack);
         if ((string)c1 == "(") {
             PyObject func_name = children.at(0)->evaluate(stack);
-            children.at(2)->evaluate(stack);  // eval the args
-            PyObject ret = stack.call_function(func_name);
+            PyObject arguments = children.at(2)->evaluate(stack);
+            PyObject ret = stack.call_function(func_name, arguments);
             sub_indent(2);
             return ret;
         }
@@ -2795,6 +2800,7 @@ Atom::~Atom() {
     sub_indent(2);
 }
 void Atom::parse() {
+    cout << peek("Atom").value.size() << endl;
     if (is_number(peek("Atom").value)) {
         children.push_back(new Number(tokenizer, indent));
     } 
@@ -2811,12 +2817,13 @@ void Atom::parse() {
         // a list or listcomp
         children.push_back(new List(tokenizer, indent));
     }
-    else if (peek("Atom").value == "\"") {
+    else if (peek("Atom").value.at(0) == '"' || peek("Atom").value.at(0) == '\'') {
         children.push_back(new _String(tokenizer, indent));
     }
     else {
         children.push_back(new Name(tokenizer, indent));
     }
+    cout << peek("Atom").value.size() << endl;
 }
 PyObject Atom::evaluate(Stack stack) {
     log("Atom::evaluate()", DEBUG); add_indent(2);
@@ -2970,13 +2977,7 @@ PyObject Arguments::evaluate(Stack stack) {
     return PyObject();
 }
 ostream& Arguments::print(ostream& os) const {
-    if (children.size() > 1) {
-        for (int i=0; i < children.size()-1; i++) {
-            os << *(children[i]) << ",";
-        }
-        os << *children.back();
-    }
-    else if (children.size() == 1) os << *children.back();
+    os << *children.at(0);
     return os;
 }
 
@@ -3003,6 +3004,8 @@ Args::~Args() {
     sub_indent(2);
 }
 void Args::parse() {
+    if (peek("Args").value == ")") return;
+
     StarredExpression* se;
     NamedExpression* ne;
     while (1) {
@@ -3027,9 +3030,9 @@ void Args::parse() {
                 break;
             }
         }
-    }
-    if (peek("Args").value == ",") {
-        eat_value(",", "Args");
+        if (peek("Args").value == ",") {
+            eat_value(",", "Args");
+        }
     }
     if (peek("Args").value != ")") {
         children.push_back(new Kwargs(tokenizer, indent));
@@ -3037,15 +3040,19 @@ void Args::parse() {
 }
 PyObject Args::evaluate(Stack stack) {
     log("Args::evaluate()", DEBUG); add_indent(2);
+    vector<PyObject> arguments;
     for (AST* child : children) {
-        stack.push_arg(child->evaluate(stack));
+        arguments.push_back(child->evaluate(stack));
     }
     sub_indent(2);
-    return PyObject();
+    return PyObject(arguments, "list");
 }
 ostream& Args::print(ostream& os) const {
-    for (AST *child : children) {
-        os << *child;
+    if (children.size() > 0) {
+        for (int i=0; i < children.size()-1; i++) {
+            os << *children.at(i) << ",";
+        }
+        os << *children.back();
     }
     return os;
 }

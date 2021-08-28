@@ -87,6 +87,7 @@ class Kwargs;
 class StarredExpression;
 class Op;
 class _String;
+class Name;
 class Number;
 class Bool;
 
@@ -433,6 +434,7 @@ class ParamMaybeDefault: public AST {
 };
 class Param: public AST {
     private:
+        Name* name;
         void parse();
     public:
         Param(Tokenizer *tokenizer, string indent);

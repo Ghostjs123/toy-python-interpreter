@@ -8,11 +8,11 @@
 #include "pyobject.h"
 using namespace std;
 
-typedef PyObject (*FnPtr)(vector<PyObject>);
+typedef PyObject (*FnPtr)(PyObject);
 
 map<string, FnPtr> build_builtins();
 tuple<bool, PyObject> call_builtin(map<string, FnPtr> builtins, string fname, vector<PyObject> args);
-PyObject print(vector<PyObject> p);
+PyObject print(PyObject arguments);
 
 
 #endif

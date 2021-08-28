@@ -515,16 +515,25 @@ void Tokenizer::log() {
 
 void Tokenizer::strip() {
     // removing all NL's -- completely empty lines, and COMMENT's
+    // for COMMENT's, the NEWLINE following also needs removed
     int before = tokens.size();
 
     tokens.erase(
-        remove_if(tokens.begin(), tokens.end(), 
-            [](Token t){return t.type == "NL" || t.type == "COMMENT";}
-        ), tokens.end()
-    );
+        remove_if(tokens.begin(), tokens.end(), [](Token t){return t.type == "NL";})
+        , tokens.end());
+    auto it = tokens.begin();
+    while (it != tokens.end()) {
+        if (it->type == "COMMENT") {
+            it = tokens.erase(it);
+            if (it->type == "NEWLINE") it = tokens.erase(it);
+        }
+        else {
+            it++;
+        }
+    }
 
     Logger::get_instance()->log("strip() before = " + to_string(before) 
-                                + " after = " + to_string(tokens.size()), DEBUG);
+                                + ", after = " + to_string(tokens.size()), DEBUG);
 }
 
 Token Tokenizer::next_token() {

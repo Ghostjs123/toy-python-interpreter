@@ -41,6 +41,8 @@ public:
     bool as_bool() const;
     vector<PyObject> as_list() const;
     AST* get_function() const;
+    int size() const;
+    PyObject at(int i) const;
     void error_undefined(string op, string t1, string t2) const;
     void error_unsupported_op(string op, string t1, string t2) const;
     void error_unsupported_unary_op(string op, string t1) const;

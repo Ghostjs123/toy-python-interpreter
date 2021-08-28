@@ -1,5 +1,6 @@
 #include <iostream>
 #include <vector>
+#include <deque>
 #include <string>
 #include <tuple>
 #include <map>
@@ -16,11 +17,10 @@ using namespace std;
 
 //==========================================================
 
-Frame::Frame(int id) {
+Frame::Frame() {
     this->id = id;
     this->builtins = build_builtins();
-    this->returning = false;
-    this->return_value = PyObject();  // None
+    this->set_default_values();
     Logger::get_instance()->log("Created Frame with id: " + to_string(this->id), INFO);
 }
 
@@ -28,8 +28,7 @@ Frame::Frame(int id, Frame* prev_frame) {
     this->id = id;
     this->globals = map<string, AST*>(prev_frame->globals);
     this->builtins = map<string, FnPtr>(prev_frame->builtins);
-    this->returning = false;
-    this->return_value = PyObject();  // None
+    this->set_default_values();
     Logger::get_instance()->log("Created Frame with id: " + to_string(this->id), INFO);
 }
 
@@ -37,39 +36,34 @@ Frame::Frame(int id, map<string, AST*> globals, map<string, FnPtr> builtins) {
     this->id = id;
     this->globals = map<string, AST*>(globals);
     this->builtins = map<string, FnPtr>(builtins);
-    this->returning = false;
-    this->return_value = PyObject();  // None
+    this->set_default_values();
     Logger::get_instance()->log("Created Frame " + to_string(this->id), INFO);
 }
 
-vector<PyObject> Frame::build_args() {
-    vector<PyObject> args;
-    while (this->arg_stack.size() > 0) {
-        args.push_back(arg_stack.back());
-        arg_stack.pop_back();
-    }
-    return args;
+void Frame::set_default_values() {
+    this->returning = false;
+    this->return_value = PyObject();  // None
+    this->parameters = PyObject();  // None
+    this->parameter_idx = 0;
 }
 
-// TODO: going to need a 2nd one of these that interprets
-// the arg_stack with the FunctionDefRaw's Params as well
-// to correctly handle defaults
-// vector<PyObject> Frame::build_args() {
-//     vector<PyObject> args;
-    
-//     return args;
-// }
+string Frame::get_function_name() {
+    return this->function_name;
+}
 
-void Frame::push_arg(PyObject value) {
-    Logger::get_instance()->log("Frame " + to_string(this->id) 
-                                + " pushed arg '" + (string)value + "'", DEBUG);
-    this->arg_stack.push_back(value);
+PyObject Frame::next_param() {
+    PyObject next_p = this->parameters.at(this->parameter_idx);
+    this->parameter_idx++;
+
+    return next_p;
 }
 
 void Frame::assign(string name, PyObject value) {
     this->locals.insert(pair<string, PyObject>(name, value));
-    Logger::get_instance()->log("Frame " + to_string(this->id) 
-                                + (string)": " + name + " = " + (string)value, DEBUG);
+    Logger::get_instance()->log(
+        "Frame " + to_string(this->id) + (string)": " + name + " = " + (string)value,
+        DEBUG
+    );
 }
 
 PyObject Frame::get_value(string name) {
@@ -79,11 +73,14 @@ PyObject Frame::get_value(string name) {
     if (b_it == this->builtins.end() && g_it == this->globals.end()) {
         // not in globals / builtins
         map<string, PyObject>::iterator locals_it = this->locals.find(name);
+
         if (locals_it != this->locals.end()) {
             return locals_it->second;
         }
-        Logger::get_instance()->log("Frame " + to_string(this->id) 
-                                    + " failed to find Name '" + (string)name + "'", DEBUG);
+        Logger::get_instance()->log(
+            "Frame " + to_string(this->id) + " failed to find Name '" + (string)name + "'",
+            DEBUG
+        );
         throw runtime_error("NameError: name '" + (string)name + "' is not defined");
     }
     else {
@@ -108,19 +105,13 @@ bool Frame::is_returning() {
 
 //==========================================================
 
-string args_as_string(vector<PyObject> args) {
-    if (args.size() == 0) return "()";
-    if (args.size() == 1) return "(" + args.at(0).as_string() + ")";
-    string s = "(";
-    for (int i=0; i < args.size()-1; i++) {
-        s += args.at(i).as_string() + ", ";
-    }
-    s += args.back().as_string() + ")";
-    return s;
-}
+// TODO: Notes for later
+// print("a: ", a())
+// this is not working, each Frame needs its own arg_stack bc atm
+// the a() call is thrashing print()'s arg_stack
 
 Stack::Stack() {
-    this->frames.push_back(new Frame(frames.size()));
+    this->frames.push_back(new Frame());
     Logger::get_instance()->log("Created the Stack", INFO);
 }
 
@@ -128,50 +119,52 @@ void Stack::clean() {
     while (this->frames.size() > 0) this->pop_frame();
 }
 
-vector<PyObject> Stack::build_args() {
-    return this->current_frame()->build_args();
-}
-
 PyObject Stack::call_global(AST* functiondef) {
     // need to push a new frame, update the params, then eval the block
     Frame* new_frame = new Frame(next_id(), current_frame());
     push_frame(new_frame);
-    FunctionDef* func_t = dynamic_cast<FunctionDef*>(functiondef);
-    FunctionDefRaw* raw_t = dynamic_cast<FunctionDefRaw*>(func_t->raw);
-    vector<PyObject> args = build_args();
-    Logger::get_instance()->log("calling function '" + raw_t->name + "' with args: " + args_as_string(args), DEBUG);
-    // for (int i=0; i < raw_t->params.size(); i++) {
-    //     cout << raw_t->params.at(i)->evaluate(*this) << endl;
-    //     new_frame->assign(raw_t->params.at(i)->evaluate(*this), args.at(i));
-    // }
-    raw_t->body->evaluate(*this);
+    FunctionDefRaw* raw = dynamic_cast<FunctionDefRaw*>(dynamic_cast<FunctionDef*>(functiondef)->raw);
+    Logger::get_instance()->log("calling function '" + raw->name + "'", DEBUG);
+    new_frame->function_name = raw->name;
+    raw->params->evaluate(*this);
+    raw->body->evaluate(*this);
     PyObject ret = new_frame->get_return_value();
     pop_frame();
-    Logger::get_instance()->log("function '" + raw_t->name + "' returning: " + ret.as_string(), DEBUG);
+    Logger::get_instance()->log("function '" + raw->name + "' returning: " + ret.as_string(), DEBUG);
     return ret;
 }
 
-PyObject Stack::call_function(PyObject func_name) {
+PyObject Stack::call_function(PyObject func_name, PyObject arguments) {
     Logger::get_instance()->log("searching for function: '" + (string)func_name + "'", DEBUG);
-    tuple<bool, PyObject> res;
-    Frame* cf = current_frame();
+    Frame* current_f = current_frame();
 
     // check/call builtin
-    map<string, FnPtr>::iterator b_it = cf->builtins.find((string)func_name);
-    if (b_it != cf->builtins.end()) {
+    map<string, FnPtr>::iterator builtin_it = current_f->builtins.find((string)func_name);
+
+    if (builtin_it != current_f->builtins.end()) {
         Logger::get_instance()->log("calling builtin: '" + (string)func_name + "'", DEBUG);
-        PyObject ret = b_it->second(build_args());
+        PyObject ret = builtin_it->second(arguments);
         Logger::get_instance()->log("function '" + (string)func_name + "' returning: " + ret.as_string(), DEBUG);
+
         return ret;
     }
     
     // check/call global
-    map<string, AST*>::iterator g_it = cf->globals.find((string)func_name);
-    if (g_it != cf->globals.end()) {
+    map<string, AST*>::iterator g_it = current_f->globals.find((string)func_name);
+
+    if (g_it != current_f->globals.end()) {
         return call_global(g_it->second);
     }
 
     throw runtime_error("stack - function \'" + (string)func_name + "\' is not defined");
+}
+
+string Stack::get_function_name() {
+    return this->current_frame()->get_function_name();
+}
+
+PyObject Stack::next_param() {
+    return this->current_frame()->next_param();
 }
 
 void Stack::add_function(AST* function) {
@@ -182,8 +175,8 @@ void Stack::add_function(AST* function) {
     Logger::get_instance()->log("Added function '" + raw_t->name + "' to globals", INFO);
 }
 
-void Stack::push_arg(PyObject value) {
-    this->current_frame()->push_arg(value);
+void Stack::assign(PyObject name, PyObject value) {
+    this->current_frame()->assign(name, value);
 }
 
 PyObject Stack::get_value(string name) {

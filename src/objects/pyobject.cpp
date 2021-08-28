@@ -204,6 +204,44 @@ AST* PyObject::get_function() const {
     throw runtime_error("get_function() called on PyObject of type: \'" + this->type + "\'");
 }
 
+int PyObject::size() const {
+    if (this->type == "bool") {
+        throw runtime_error("TypeError: object of type 'bool' has no len()");
+    }
+    if (this->type == "str") {
+        return this->s_value.size();
+    }
+    if (this->type == "int") {
+        throw runtime_error("TypeError: object of type 'int' has no len()");
+    }
+    if (this->type == "float") {
+        throw runtime_error("TypeError: object of type 'float' has no len()");
+    }
+    if (this->type == "list") {
+        return this->li_value.size();
+    }
+    throw runtime_error("size() not defined for type " + this->type);
+}
+
+PyObject PyObject::at(int i) const {
+    if (this->type == "bool") {
+        throw runtime_error("TypeError: 'bool' object is not subscriptable");
+    }
+    if (this->type == "str") {
+        return PyObject(this->s_value.at(i), "str");
+    }
+    if (this->type == "int") {
+        throw runtime_error("TypeError: 'int' object is not subscriptable");
+    }
+    if (this->type == "float") {
+        throw runtime_error("TypeError: 'float' object is not subscriptable");
+    }
+    if (this->type == "list") {
+        return PyObject(this->li_value.at(i));
+    }
+    throw runtime_error("at() not defined for type " + this->type);
+}
+
 // error function for undefined ops
 void PyObject::error_undefined(string op, string t1, string t2) const {
     throw runtime_error("undefined op \'" + op + "\' for \'" + t1 
@@ -520,6 +558,9 @@ PyObject PyObject::operator!=(const PyObject& p) const {
     }
     if (this->type == "int") {
         return PyObject(this->i_value != p.i_value, "bool");
+    }
+    if (this->type == "None") {
+        return PyObject(this->type != p.type, "bool");
     }
     // TODO: implement list and dict
 
